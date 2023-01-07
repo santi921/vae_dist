@@ -2,10 +2,7 @@ import torch.nn as nn
 import torch
 import pytorch_lightning as pl
 
-from pl_bolts.models.autoencoders.components import (
-    resnet18_decoder,
-    resnet18_encoder,
-)
+
 
 class baselineVAEAutoencoder(pl.LightningModule):
     def __init__(
@@ -50,12 +47,6 @@ class baselineVAEAutoencoder(pl.LightningModule):
         self.kwargs = kwargs
         self.kl = 0
 
-
-        #self.N = torch.distributions.Normal(0, 1)
-        #self.N.loc = self.N.loc.cuda() # hack to get sampling on the GPU
-        #self.N.scale = self.N.scale.cuda()
-        #self.fc_mu = nn.Linear(hidden_dim[-1]*4, latent_dim) # 4 dimensions
-        #self.fc_var = nn.Linear(hidden_dim[-1]*4, latent_dim)
         self.save_hyperparameters()
 
         self.fc_mu = nn.Linear(hidden_dim[-1], latent_dim)

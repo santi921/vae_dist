@@ -50,9 +50,10 @@ def pull_fields(root):
     mats = []
     for file in os.listdir(root):
         if file.endswith(".dat"):
-            mats.append(mat_pull(root + file))
+            mat, shape = mat_pull(root + file)
+            mats.append(mat)
     mats = np.array(mats)
-    return mats
+    return mats, shape
 
 
 def mat_pull(file):
@@ -71,5 +72,5 @@ def mat_pull(file):
         mat[int(ind/(steps_z*steps_y)), int(ind/steps_z % steps_y), ind%steps_z, 0] = float(line_split[-3])
         mat[int(ind/(steps_z*steps_y)), int(ind/steps_z % steps_y), ind%steps_z, 1] = float(line_split[-2])
         mat[int(ind/(steps_z*steps_y)), int(ind/steps_z % steps_y), ind%steps_z, 2] = float(line_split[-1])
-    return mat  
+    return mat, [steps_x, steps_y, steps_z]
 

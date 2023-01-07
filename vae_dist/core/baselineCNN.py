@@ -1,5 +1,17 @@
+# TODO: make this lightening
 import torch.nn as nn
 import torch
+from torchConvNd import ConvNd, ConvTransposeNd
+from torchsummary import summary
+
+
+class Unflatten(nn.Module):
+    def __init__(self, *args):
+        super(Unflatten, self).__init__()
+        self.shape = args
+
+    def forward(self, x):
+        return x.view(self.shape)
 
 class baselineCNNAutoencoder(nn.Module):
     def __init__(
@@ -21,6 +33,7 @@ class baselineCNNAutoencoder(nn.Module):
         dropout,
         batch_norm,
         beta,
+        device,
         **kwargs
     ):
         super().__init__()
@@ -42,12 +55,13 @@ class baselineCNNAutoencoder(nn.Module):
         self.batch_norm = batch_norm
         self.beta = beta
         self.kwargs = kwargs
+        self.device = device
 
         self.encoder = nn.Sequential(
             nn.Conv3d(
                 in_channels = self.in_channels,
                 out_channels = self.out_channels,
-                kernel_size = self.kernel_size,
+                kernel_size = 3,
                 stride = self.stride,
                 padding = self.padding,
                 dilation = self.dilation,
@@ -55,31 +69,19 @@ class baselineCNNAutoencoder(nn.Module):
                 bias = self.bias,
                 padding_mode = self.padding_mode
             ),
+            nn.BatchNorm3d(self.out_channels),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(
-                in_features = self.out_channels * 32 * 32 * 32,
-                out_features = self.hidden_dim
-            ),
-            nn.ReLU(),
-            nn.Linear(
-                in_features = self.hidden_dim,
-                out_features = self.latent_dim
-            )
+            nn.Linear(, self.latent_dim),
+            nn.ReLU()
         )
 
         self.decoder = nn.Sequential(
-            nn.Linear(
-                in_features = self.latent_dim,
-                out_features = self.hidden_dim
-            ),
+            nn.Linear(self.latent_dim, 16*16*16),
             nn.ReLU(),
-            nn.Linear(
-                in_features = self.hidden_dim,
-                out_features = self.out_channels * 32 * 32 * 32
-            ),
+            Unflatten(-1, 16, 16, 16),
+            nn.BatchNorm3d(self.out_channels),
             nn.ReLU(),
-            nn.Unflatten(1, (self.out_channels, 32, 32, 32)),
             nn.ConvTranspose3d(
                 in_channels = self.out_channels,
                 out_channels = self.in_channels,
@@ -91,25 +93,32 @@ class baselineCNNAutoencoder(nn.Module):
                 bias = self.bias,
                 padding_mode = self.padding_mode
             ),
+            
             nn.Sigmoid()
         )
+
+        self.decoder.to(self.device)
+        self.encoder.to(self.device)
+        #summary(self.encoder)
+        #summary(self.decoder)
 
     def forward(self, x):
         x = self.encoder(x)
         x = self.decoder(x)
         return x
 
+
     def encode(self, x):
         return self.encoder(x)
+
 
     def decode(self, x):
         return self.decoder(x)
 
-    def loss(self, x): # this is autoencoder loss, not VAE loss
-        # KL divergence
-        z_mu, z_log_var = self.encode(x)
+
+    def loss(self, x): # todo
         x_hat = self.forward(x)
-        return nn.MSELoss()(x_hat, x) + self.beta * torch.sum(torch.exp(z_log_var) + z_mu**2 - 1. - z_log_var)
+        return nn.MSELoss()(x_hat, x).to(self.device)
         
     
     
