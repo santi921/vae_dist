@@ -24,32 +24,12 @@ class CNNAutoencoderLightning(pl.LightningModule):
         activation,
         dropout,
         batch_norm,
-        beta,
         device,
+        learning_rate,
         **kwargs
     ):
         super().__init__()
-
-        """self.irreps = irreps
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.kernel_size = kernel_size
-        self.stride = stride
-        self.padding = padding
-        self.dilation = dilation
-        self.groups = groups
-        self.bias = bias
-        self.padding_mode = padding_mode
-        self.latent_dim = latent_dim
-        self.num_layers = num_layers
-        self.hidden_dim = hidden_dim
-        self.activation = activation
-        self.dropout = dropout
-        self.batch_norm = batch_norm
-        self.beta = beta
-        self.kwargs = kwargs
-        self.device = device"""
-
+        self.learning_rate = learning_rate
         params = {
             'irreps': irreps,
             'in_channels': in_channels,
@@ -67,9 +47,9 @@ class CNNAutoencoderLightning(pl.LightningModule):
             'activation': activation,
             'dropout': dropout,
             'batch_norm': batch_norm,
-            'beta': beta,
             'device': device,
             'kwargs': kwargs,
+            'learning_rate': learning_rate
         }
         self.hparams.update(params)
         self.save_hyperparameters()
@@ -151,7 +131,6 @@ class CNNAutoencoderLightning(pl.LightningModule):
         
 
     def training_step(self, batch, batch_idx):
-        
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         self.log("train_loss", loss)     
@@ -173,7 +152,7 @@ class CNNAutoencoderLightning(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, 
             mode='min', 
@@ -192,28 +171,3 @@ class CNNAutoencoderLightning(pl.LightningModule):
             }
         return [optimizer], [lr_scheduler]
     
-"""nn.ConvTranspose3d(
-    in_channels = self.out_channels,
-    out_channels = self.in_channels,
-    kernel_size = self.kernel_size,
-    stride = self.stride,
-    padding = self.padding,
-    dilation = self.dilation,
-    groups = self.groups,
-    bias = self.bias,
-    padding_mode = self.padding_mode
-),"""
-
-"""nn.Conv3d(
-    in_channels = self.in_channels,
-    out_channels = self.out_channels,
-    kernel_size = self.kernel_size,
-    stride = self.stride,
-    padding = self.padding,
-    dilation = self.dilation,
-    groups = self.groups,
-    bias = self.bias,
-    padding_mode = self.padding_mode
-),
-nn.BatchNorm3d(self.out_channels),
-nn.ReLU(),"""      

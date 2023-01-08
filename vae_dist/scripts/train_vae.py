@@ -1,8 +1,12 @@
+from vae_dist.core.VAE import baselineVAEAutoencoder
+
 import pytorch_lightning as pl
-from vae_dist.core.CNN import CNNAutoencoderLightning
 from vae_dist.dataset.dataset import FieldDataset
 from pytorch_lightning.callbacks import LearningRateMonitor
+from pytorch_lightning.callbacks import EarlyStopping, StochasticWeightAveraging
 import torch 
+
+
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     root = "../../data/cpet/"
@@ -43,7 +47,9 @@ def main():
         num_workers=0
     )
 
-    model = CNNAutoencoderLightning(
+
+
+    vae = baselineVAEAutoencoder(
         irreps = None, # not used rn 
         in_channels = 3,
         out_channels = 16,
@@ -62,28 +68,21 @@ def main():
         batch_norm = False, # not used rn 
         beta = 1.0,
         device = device,
-        learning_rate = 0.01,
+        learning_rate = 0.001
     )
 
-    lr_monitor = LearningRateMonitor(logging_interval='step')
     trainer = pl.Trainer(
-        limit_train_batches=100, 
-        max_epochs=100, 
-        accelerator='gpu', 
-        devices = [0],
-        accumulate_grad_batches=5, 
-        callbacks=[
-            pl.callbacks.EarlyStopping(monitor='val_loss', patience=50, verbose = False),
-            lr_monitor]
-    )
-
-    trainer.fit(model, dataset_loader_train, dataset_loader_test)
-
-    # find lr 
-    trainer_lr = pl.Trainer(auto_lr_find=True, max_epochs=100, gpus=1)
-    lr_finder = trainer_lr.tuner.lr_find(model, dataset_loader_train, dataset_loader_test)
-    fig = lr_finder.plot(suggest=True)
-    fig.show()
-    lr_finder.suggestion()
+            gpus=1, 
+            max_epochs=30, 
+            callbacks=[
+                EarlyStopping(monitor='elbo_val', patience=10),
+                #StochasticWeightAveraging(swa_lrs=1e-2)
+                ],
+            accumulate_grad_batches=5,
+            gradient_clip_val=1.0, 
+            gradient_clip_algorithm='value',
+            precision=16
+        )
+    trainer.fit(vae, dataset_loader_train, dataset_loader_test)
 
 main()

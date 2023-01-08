@@ -69,6 +69,11 @@ def test_transformations_and_augmentations():
     print(dataset_1[[0,1]].shape)
     print(dataset_2[[0,1]].shape)
     
+
+def scale_data(data):
+    #TODO 
+    pass
+
 def main():
     print("testing base data loading")
     test_load_data()

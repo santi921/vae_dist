@@ -1,12 +1,28 @@
 import torch 
 from vae_dist.dataset.fields import pull_fields
-
+import numpy as np 
 # create class for dataset
 class FieldDataset(torch.utils.data.Dataset):
-    def __init__(self, root, transform=None, augmentation=None, device='cpu'):
+    def __init__(self, root, transform=None, augmentation=None, standardize=True, device='cpu'):
         fields, shape = pull_fields(root)
         data = fields.reshape([len(fields), 3, shape[0], shape[1], shape[2]])
         
+        self.data_std = data.std(axis = (0,1,2,3), keepdims=True)
+        self.data_mean = data.mean(axis = (0,1,2,3), keepdims=True)
+        self.data_max = data.max(axis = (0,1,2,3), keepdims=True)
+        self.data_min = data.min(axis = (0,1,2,3), keepdims=True)
+
+        if standardize:
+            data = (data - self.data_min) / (self.data_max - self.data_min + 0.0001)
+        # print if any values are nan
+        if np.isnan(data).any():
+            print("Nan values in dataset")
+        self.max = data.max()
+        self.min = data.min()
+
+        # print largest and smallest values
+        print("Largest value in dataset: ", self.max)
+        print("Smallest value in dataset: ", self.min)
         self.shape = shape
         self.data = data
         self.dataraw = self.data
@@ -14,6 +30,7 @@ class FieldDataset(torch.utils.data.Dataset):
         self.augmentation = augmentation
         self.transform = transform        
         self.device = device
+        self.standardize = standardize
         
         
 
