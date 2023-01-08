@@ -3,3 +3,7 @@
 *txt
 *pyc
 *PKG-INFO
+lightning_logs/*
+*ckpt
+*yaml
+*pop-os

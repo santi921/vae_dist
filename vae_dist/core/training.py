@@ -1,7 +1,6 @@
 import torch 
 
-def train(model, data_loader, epochs=20, device=None):
-    
+def train(model, data_loader, epochs=20):
     opt = torch.optim.Adam(model.parameters(),
                              lr = 1e-1,
                              weight_decay = 1e-8)
