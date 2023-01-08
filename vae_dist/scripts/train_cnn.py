@@ -1,12 +1,20 @@
-from vae_dist.core.baselineCNN import baselineCNNAutoencoder
+from vae_dist.core.CNN import baselineCNNAutoencoder
 from vae_dist.core.training import train
 from vae_dist.dataset.dataset import FieldDataset
 import torch 
 
 def main():
-    root = "../../data/cpet/"
-
+    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    root = "../../data/cpet/"
+    dataset_loader_full = torch.utils.data.DataLoader(dataset_vanilla, batch_size=4, shuffle=True)
+    # load model to gpu
+    dataset_vanilla = FieldDataset(
+        root, 
+        transform=None, 
+        augmentation=None, 
+        device=device
+        )
 
     model = baselineCNNAutoencoder(
         irreps = None, # not used rn 
@@ -29,16 +37,8 @@ def main():
         beta = 1.0,
         device = device
     )
-    # load model to gpu
-    dataset_vanilla = FieldDataset(
-        root, 
-        transform=None, 
-        augmentation=None, 
-        device=device
-        )
-    
-    dataset_loader_full = torch.utils.data.DataLoader(dataset_vanilla, batch_size=4, shuffle=True)
-    
+
+        
     train(model, dataset_loader_full, device = device)
 
     
