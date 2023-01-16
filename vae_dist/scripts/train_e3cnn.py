@@ -21,7 +21,7 @@ def main():
 
     # train test split - randomly split dataset into train and test
     train_size = int(0.8 * len(dataset_vanilla))
-    test_size = len(dataset_anilla) - train_size
+    test_size = len(dataset_vanilla) - train_size
     train_dataset, test_dataset = torch.utils.data.random_split(dataset_vanilla, [train_size, test_size])
 
 
@@ -67,7 +67,9 @@ def main():
         equivariance='SO3',
         bias = True,
         scalar_upsampling=False,
-        scale=2
+        scale=2,
+        num_radial_basis_down=4,
+        num_radial_basis_up=4,
     )
 
     lr_monitor = LearningRateMonitor(logging_interval='step')

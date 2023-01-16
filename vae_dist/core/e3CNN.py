@@ -37,6 +37,8 @@ class e3CNN(pl.LightningModule):
         bias = True,
         scalar_upsampling=False,
         scale=2,
+        num_radial_basis_down=4,
+        num_radial_basis_up=4,
         **kwargs
     ):
         super().__init__()
@@ -81,7 +83,6 @@ class e3CNN(pl.LightningModule):
             'activation': activation,
             'batch_norm': batch_norm,
             'device': device,
-            'kwargs': kwargs,
             'learning_rate': learning_rate,
             'dropout_prob': dropout_prob,
             'cutoff': cutoff,
@@ -96,8 +97,9 @@ class e3CNN(pl.LightningModule):
             'irreps_sh': irreps_sh,
             'n': n,
             'equivariance': equivariance,
-            'scale': scale
-
+            'scale': scale,
+            'num_radial_basis_down': num_radial_basis_down,
+            'num_radial_basis_up': num_radial_basis_up
         }
 
         self.hparams.update(params)
@@ -115,13 +117,20 @@ class e3CNN(pl.LightningModule):
             down_op=down_op,
             scale=scale,
             stride=stride,
-            drop_prob=dropout_prob,
-            cutoff=cutoff)
+            dropout_prob=dropout_prob,
+            cutoff=cutoff,
+            num_radial_basis=num_radial_basis_down)
 
-        self.latent = Linear(
-            self.up.up_blocks[-1].irreps_out, 
-            latent_irreps,
-            activation = torch.ReLU)
+        #self.latent = Linear(
+        #    self.down.down_blocks[-1].irreps_out, 
+        #    latent_irreps,
+        #    activation = torch.tanh,)
+        dims = [self.down.down_blocks[-1].irreps_out, latent_irreps]
+        self.out = FullyConnectedNet(
+            [10,10],
+            out_act=True,
+            act=Activation(latent_irreps, [torch.tanh])
+            )
     
         ne *= 2**(n_downsample-1)
         no *= 2**(n_downsample-1)
@@ -140,13 +149,14 @@ class e3CNN(pl.LightningModule):
             stride=stride,
             dropout_prob=dropout_prob,
             scalar_upsampling=scalar_upsampling,
-            cutoff=cutoff
+            cutoff=cutoff,
+            num_radial_basis=num_radial_basis_up
         )
         out_layer_dim = [self.up.up_blocks[-1].irreps_out, irreps_out]
         self.out = FullyConnectedNet(
-            out_layer_dim,
+            [10,10],
             out_act=True,
-            activation=torch.ReLU 
+            act=Activation(irreps_out, [torch.tanh])
             )
         
 

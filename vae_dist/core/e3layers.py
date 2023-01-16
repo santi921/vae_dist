@@ -244,7 +244,7 @@ class LowPassFilter(torch.nn.Module):
 
 
 class ConvolutionBlock(nn.Module):
-    def __init__(self, input, irreps_hidden, activation, irreps_sh, normalization,kernel_size,dropout_prob,cutoff):
+    def __init__(self, input, irreps_hidden, activation, irreps_sh, normalization,kernel_size,dropout_prob,cutoff, num_radial_basis):
         super().__init__()
 
         if normalization == 'None':
@@ -268,12 +268,12 @@ class ConvolutionBlock(nn.Module):
             activation_gate = [torch.sigmoid, torch.tanh][:len(activation)]
 
         self.gate1 = Gate(irreps_scalars, activation, irreps_gates, activation_gate, irreps_gated)
-        self.conv1 = Convolution(input, self.gate1.irreps_in, irreps_sh, kernel_size,cutoff=cutoff)
+        self.conv1 = Convolution(input, self.gate1.irreps_in, irreps_sh, kernel_size,cutoff=cutoff, num_radial_basis=num_radial_basis)
         self.batchnorm1 = BN(self.gate1.irreps_in)
         self.dropout1 = Dropout(self.gate1.irreps_out, dropout_prob)
 
         self.gate2 = Gate(irreps_scalars, activation, irreps_gates, activation_gate, irreps_gated)
-        self.conv2 = Convolution(self.gate1.irreps_out, self.gate2.irreps_in, irreps_sh, kernel_size,cutoff=cutoff)
+        self.conv2 = Convolution(self.gate1.irreps_out, self.gate2.irreps_in, irreps_sh, kernel_size,cutoff=cutoff, num_radial_basis=num_radial_basis)
         self.batchnorm2 = BN(self.gate2.irreps_in)
         self.dropout2 = Dropout(self.gate2.irreps_out, dropout_prob)
 
@@ -308,7 +308,8 @@ class Down(nn.Module):
         scale,
         stride,
         dropout_prob,
-        cutoff):
+        cutoff,
+        num_radial_basis):
         super().__init__()
 
         blocks = []
@@ -316,7 +317,16 @@ class Down(nn.Module):
 
         for n in range(n_blocks_down+1):
             irreps_hidden = Irreps(f"{4*ne}x0e + {4*no}x0o + {2*ne}x1e + {ne}x2e + {2*no}x1o + {no}x2o").simplify()
-            block = ConvolutionBlock(input,irreps_hidden,activation,irreps_sh,BN,kernel_size,dropout_prob,cutoff)
+            block = ConvolutionBlock(
+                input,
+                irreps_hidden,
+                activation,
+                irreps_sh,
+                BN,
+                kernel_size,
+                dropout_prob,
+                cutoff, 
+                num_radial_basis)
             blocks.append(block)
             self.down_irreps_out.append(block.irreps_out)
             input = block.irreps_out
@@ -359,7 +369,8 @@ class Up(nn.Module):
         stride,
         dropout_prob,
         scalar_upsampling,
-        cutoff):
+        cutoff,
+        num_radial_basis):
         super().__init__()
 
         self.n_blocks_up = n_blocks_up
@@ -377,7 +388,7 @@ class Up(nn.Module):
             else:
                 irreps_hidden = Irreps(f"{4*ne}x0e + {4*no}x0o + {2*ne}x1e + {ne}x2e + {2*no}x1o + {no}x2o").simplify()
 
-            block = ConvolutionBlock(input+downblock_irreps[::-1][n+1],irreps_hidden,activation,irreps_sh,BN,kernel_size,dropout_prob,cutoff)
+            block = ConvolutionBlock(input+downblock_irreps[::-1][n+1],irreps_hidden,activation,irreps_sh,BN,kernel_size,dropout_prob,cutoff, num_radial_basis)
             blocks.append(block)
             input = block.irreps_out
             ne //= 2
