@@ -33,9 +33,9 @@ class FieldDataset(torch.utils.data.Dataset):
         self.standardize = standardize
         
         
-
     def __len__(self):
         return len(self.data)
+
 
     def __getitem__(self, index):
 
