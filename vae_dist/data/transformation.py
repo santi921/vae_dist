@@ -46,10 +46,9 @@ class Transform(object):
         return mat_transform
 
     def helmholtz_full(self, mat): 
-
-        for i in range(mat.shape[0]):
-            mat[i] = helmholtz_hodge_decomp_approx(mat[i])
-        return mat
+        matret = helmholtz_hodge_decomp_approx(mat[0])
+        matret = matret.reshape(mat.shape[0], mat.shape[1], mat.shape[2], mat.shape[3], mat.shape[4])
+        return matret
 
     def unwrap_pca(self, mat): 
         mat = self.pca.inverse_transform(mat)
@@ -58,7 +57,9 @@ class Transform(object):
 
 
 def helmholtz_hodge_decomp_approx(mat):
-
+    #rotate indices to be in the order (x,y,z,component), with einsum
+    mat = np.einsum('lijk->ijkl', mat)
+    
     NX, NY, NZ = mat[:,:,:,1].shape
     
     Vfx = mat[:,:,:,0]
@@ -90,5 +91,6 @@ def helmholtz_hodge_decomp_approx(mat):
 
     # remap the solenoidal part to x, y, z, u, w, v
     solenoidal_mat = np.stack([solenoidal["x"], solenoidal["y"], solenoidal["z"]], axis = -1)
+    solenoidal_mat = np.einsum('ijkl->lijk', solenoidal_mat)
     
     return solenoidal_mat

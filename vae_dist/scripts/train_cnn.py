@@ -3,6 +3,8 @@ from vae_dist.core.CNN import CNNAutoencoderLightning
 from vae_dist.dataset.dataset import FieldDataset
 from pytorch_lightning.callbacks import LearningRateMonitor
 import torch 
+
+
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     root = "../../data/cpet/"

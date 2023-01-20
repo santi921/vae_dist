@@ -53,6 +53,7 @@ def pull_fields(root):
             mat, shape = mat_pull(root + file)
             mats.append(mat)
     mats = np.array(mats)
+    
     return mats, shape
 
 

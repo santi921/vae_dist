@@ -17,6 +17,7 @@ class FieldDataset(torch.utils.data.Dataset):
         # print if any values are nan
         if np.isnan(data).any():
             print("Nan values in dataset")
+            
         self.max = data.max()
         self.min = data.min()
 
@@ -58,8 +59,11 @@ class FieldDataset(torch.utils.data.Dataset):
         #return tensor 
         data = torch.tensor(data)
 
-        if len(index) == 1:
+        if not self.augmentation and len(index) == 1:
             data = data.reshape([3, self.shape[0], self.shape[1], self.shape[2]])
+            
+        #if len(index) == 1 and self.augmentation:
+        #    data = data.reshape([3, self.shape[0], self.shape[1], self.shape[2]])
         
         return data.to(self.device, dtype=torch.float)
 
@@ -69,3 +73,35 @@ class FieldDataset(torch.utils.data.Dataset):
     def dataset_to_numpy(self): 
         self.data = self.data.numpy()
         
+
+
+def dataset_split_loader(dataset, train_split, batch_size=10, num_workers=0, shuffle=True):
+
+    # train test split - randomly split dataset into train and test
+    train_size = int(train_split * len(dataset))
+    test_size = len(dataset) - train_size
+    train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
+
+
+    dataset_loader_full = torch.utils.data.DataLoader(
+        dataset, 
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers
+    )
+
+    dataset_loader_train= torch.utils.data.DataLoader(
+        train_dataset, 
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers
+    )
+
+    dataset_loader_test= torch.utils.data.DataLoader(
+        test_dataset, 
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers
+    )
+    
+    return dataset_loader_full, dataset_loader_train, dataset_loader_test
