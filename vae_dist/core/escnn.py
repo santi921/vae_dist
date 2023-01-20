@@ -58,7 +58,6 @@ class R3Net(pl.LightningModule):
         ######################### Encoder ########################################
         in_type_og  = feat_type_in        
         
-
         out_type = nn.FieldType(self.group, self.channels_outer*[self.group.trivial_repr])
         # we choose 24 feature fields, each transforming under the regular representation of C8        
         self.encoder_conv_list.append(nn.R3Conv(in_type_og, out_type, kernel_size=kernel_size, padding=0, bias=False))
@@ -76,7 +75,7 @@ class R3Net(pl.LightningModule):
 
         # number of output channels
         c = self.channels_inner
-        self.im_dim = 2
+        self.im_dim = 1
 
         for ind, h in enumerate(fully_connected_dims):
             # if it's the last item in the list, then we want to output the latent dim
@@ -123,7 +122,8 @@ class R3Net(pl.LightningModule):
 
         self.decoder = nn.SequentialModule(*self.decoder_conv_list)
 
-
+        self.model = nn.SequentialModule(self.encoder, self.decoder)
+        
     def encode(self, x):
         #try:
         x = self.feat_type_in(x)
@@ -177,6 +177,10 @@ class R3Net(pl.LightningModule):
         self.log("val_loss", loss, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
+
+    def load_model(self, path):
+        self.model.load_state_dict(torch.load(path, map_location='cuda:0'), strict=False)
+        print('Model Created!')
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)

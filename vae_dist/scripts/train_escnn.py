@@ -28,7 +28,7 @@ def main():
 
     group = gspaces.flipRot3dOnR3(maximum_frequency=10) 
     input_out_reps = 3*[group.trivial_repr]
-    kernel_size = 1
+    kernel_size = 5
     feat_type_in  = nn.FieldType(group,  input_out_reps) 
     feat_type_out = nn.FieldType(group,  input_out_reps)     
 
@@ -57,11 +57,20 @@ def main():
         callbacks=[
             pl.callbacks.EarlyStopping(monitor='val_loss', patience=50, verbose = False),
             lr_monitor],
-        enable_checkpointing=True
+        enable_checkpointing=True,
+        default_root_dir="./log_version_auto_1/"
 
     )
 
-    trainer.fit(model, dataset_loader_train, dataset_loader_test, ckpt_path="./lightning_logs/version_auto_1/")
+    trainer.fit(
+        model, 
+        dataset_loader_train, 
+        dataset_loader_test, 
+        )
 
+    #trainer.validate(model, dataset_loader_test)
+    model.eval()
+    # save state dict
+    torch.save(model.state_dict(), './log_version_auto_1/autoenc_1.ckpt')
 
 main()
