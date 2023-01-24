@@ -1,5 +1,5 @@
 import pytorch_lightning as pl
-from vae_dist.core.escnn import e3CNN
+from vae_dist.core.O3CNN import e3CNN
 from vae_dist.dataset.dataset import FieldDataset
 from pytorch_lightning.callbacks import LearningRateMonitor
 import torch 

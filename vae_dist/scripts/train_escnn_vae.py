@@ -3,7 +3,7 @@ import torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor
 
-from vae_dist.core.O3CNN import e3CNN
+from vae_dist.core.O3VAE import R3VAE
 from vae_dist.dataset.dataset import FieldDataset, dataset_split_loader
 
 
@@ -30,7 +30,7 @@ def main():
     feat_type_in  = nn.FieldType(group,  input_out_reps) 
     feat_type_out = nn.FieldType(group,  input_out_reps)     
 
-    model = e3CNN(
+    model = R3VAE(
         group = group,
         feat_type_in = feat_type_in, 
         feat_type_out = feat_type_out, 

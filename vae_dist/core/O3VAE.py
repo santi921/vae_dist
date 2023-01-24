@@ -4,10 +4,12 @@ import pytorch_lightning as pl
 
 from torchsummary import summary
 from torch.nn import MSELoss
+from torch.nn import functional as F
 
 from vae_dist.core.escnnlayers import R3Upsampling
 
-class R3Net(pl.LightningModule):
+
+class R3VAE(pl.LightningModule):
     def __init__(
         self, 
         learning_rate, 
@@ -16,9 +18,9 @@ class R3Net(pl.LightningModule):
         feat_type_out, 
         kernel_size=5, 
         latent_dim=1, 
+        beta = 1.0,
         fully_connected_dims = [64]):
 
-        #super(self).__init__()
         super().__init__()
         self.learning_rate = learning_rate
         params = {
@@ -30,7 +32,8 @@ class R3Net(pl.LightningModule):
             'learning_rate': learning_rate,
             'latent_dim': latent_dim,
             'group': group,
-            'fully_connected_dims': fully_connected_dims
+            'fully_connected_dims': fully_connected_dims,
+            'beta': beta
         }
         self.hparams.update(params)
         #self.save_hyperparameters()
@@ -53,7 +56,11 @@ class R3Net(pl.LightningModule):
         self.channels_outer = 24
         
         # convolution 1
-    
+        self.fc_mu = torch.nn.Linear(self.hparams.latent_dim, self.hparams.latent_dim)
+        self.fc_var = torch.nn.Linear(self.hparams.latent_dim, self.hparams.latent_dim)
+        # initialize the log scale to 0
+        
+        torch.nn.init.zeros_(self.fc_var.bias)
 
         ######################### Encoder ########################################
         in_type_og  = feat_type_in        
@@ -70,44 +77,42 @@ class R3Net(pl.LightningModule):
         self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))
         self.encoder_conv_list.append(nn.PointwiseAvgPoolAntialiased3D(out_type, sigma=0.66, stride=3))
         self.encoder_conv_list.append(nn.GroupPooling(out_type))
-        self.encoder = nn.SequentialModule(*self.encoder_conv_list)
-
 
         # number of output channels
-        c = self.channels_inner
+        
         self.im_dim = 1
 
         for ind, h in enumerate(fully_connected_dims):
             # if it's the last item in the list, then we want to output the latent dim
             if ind == len(fully_connected_dims)-1:
                 h_out = latent_dim
+
             else: 
                 h_out = fully_connected_dims[ind+1]
 
             if ind == 0:
-                h_in = c*self.im_dim*self.im_dim*self.im_dim
+                self.list_dec_fully.append(torch.nn.Unflatten(1, (self.channels_inner, self.im_dim, self.im_dim, self.im_dim)))        
+                self.list_enc_fully.append(torch.nn.Flatten())
+                h_in = self.channels_inner*self.im_dim*self.im_dim*self.im_dim
             else:
                 h_in = h
+
+           
+            self.list_enc_fully.append(torch.nn.Linear(h_in , h_out))
+            self.list_enc_fully.append(torch.nn.ReLU())
             
-            self.list_enc_fully.append(torch.nn.Linear(h_in, h_out))
-            self.list_enc_fully.append(torch.nn.Sigmoid())
+            
             self.list_dec_fully.append(torch.nn.Sigmoid())
             self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
-            print(h_in, h_out)
+
+            
 
         # reverse the list
         self.list_dec_fully.reverse()
             
-        self.encoder_fully_net = torch.nn.Sequential(*self.list_enc_fully)
-        self.decoder_fully_net = torch.nn.Sequential(*self.list_dec_fully)
-
-            
-
         self.dense_out_type = nn.FieldType(group,  self.channels_inner * [self.group.trivial_repr])
-        out_type = nn.FieldType(self.group, self.channels_outer*[self.group.trivial_repr])
+        out_type = nn.FieldType(self.group, self.hparams.latent_dim * self.channels_outer*[self.group.trivial_repr])
         
-        
-        #self.decoder_conv_list.append(R3Upsampling(out_type, scale_factor=2, mode='nearest', align_corners=False))
         self.decoder_conv_list.append(nn.R3ConvTransposed(self.dense_out_type, out_type, kernel_size=kernel_size, padding=2, bias=False))
         self.decoder_conv_list.append(nn.ReLU(out_type, inplace=True))
         self.decoder_conv_list.append(R3Upsampling(out_type, scale_factor=3, mode='nearest', align_corners=False))
@@ -119,28 +124,30 @@ class R3Net(pl.LightningModule):
             bias=False))
         self.decoder_conv_list.append(nn.ReLU(in_type_og, inplace=True))
         self.decoder_conv_list.append(R3Upsampling(in_type_og, scale_factor=3, mode='nearest', align_corners=False))
-
+        
+        self.encoder_fully_net = torch.nn.Sequential(*self.list_enc_fully)
+        self.decoder_fully_net = torch.nn.Sequential(*self.list_dec_fully)
         self.decoder = nn.SequentialModule(*self.decoder_conv_list)
-
-        self.model = nn.SequentialModule(self.encoder, self.decoder)
+        self.encoder = nn.SequentialModule(*self.encoder_conv_list)
+        # summary on encoder    
+        print(self.encoder)
+        print(self.encoder_fully_net)
+        print(self.decoder_fully_net)
+        print(self.decoder)
+        
+        #summary(self.encoder, (1, 32, 32, 32))
         
     def encode(self, x):
-        #try:
         x = self.feat_type_in(x)
         x = self.encoder(x)
         x = x.tensor
-        x = x.reshape(x.shape[0], -1)
         x = self.encoder_fully_net(x)
-        return x 
-
-        #except:
-        #    summary(self.encoder, self.feat_type_in(torch.rand(1, 3, 32, 32, 32)))
-        #    raise Exception("Error in encoder")
+        return torch.clamp(self.fc_mu(x), min=0.000001), torch.clamp(self.fc_var(x), min=0.000001)
         
 
     def decode(self, x):
         x = self.decoder_fully_net(x)
-        x = x.reshape(x.shape[0], self.channels_inner, self.im_dim, self.im_dim, self.im_dim)
+        #x = x.reshape(x.shape[0], self.channels_inner, self.im_dim, self.im_dim, self.im_dim)
         x = self.dense_out_type(x)
         x = self.decoder(x)
         x = x.tensor
@@ -148,39 +155,90 @@ class R3Net(pl.LightningModule):
 
 
     def forward(self, x: torch.Tensor):
-        x = self.encode(x)
-        x = self.decode(x)
+        mu, var = self.encode(x)
+        std = torch.exp(var / 2)
+        q = torch.distributions.Normal(mu, std)
+        z = q.rsample()    
+        x = self.decode(z)
         return x
 
 
-    def loss_function(self, x, x_hat): 
-        return MSELoss()(x_hat, x).to(self.device)
+    def loss_function(self, x, x_hat, q, p): 
+        recon_loss = F.mse_loss(x_hat, x, reduction='mean')
+        kl = torch.distributions.kl_divergence(q, p).mean()
+        elbo = (kl + self.hparams.beta * recon_loss)
+        return elbo, kl, recon_loss
 
 
     def training_step(self, batch, batch_idx):
-            predict = self.forward(batch)
-            loss = self.loss_function(batch, predict)
-            self.log("train_loss", loss)     
-            return loss
+        mu, log_var = self.encode(batch)
+        #mu, log_var = self.fc_mu(x_encoded), self.fc_var(x_encoded)
+        std = torch.exp(log_var / 2)        
+        q = torch.distributions.Normal(mu, log_var)
+        z = q.rsample()
+        x_hat = self.decode(z)
+        p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
+
+        elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
+        
+        self.log_dict({
+            'elbo_train': elbo,
+            'kl_train': kl,
+            'recon_loss_train': recon_loss,
+            'train_loss': elbo
+        })
+
+        return elbo
 
 
     def test_step(self, batch, batch_idx):
-        predict = self.forward(batch)
-        loss = self.loss_function(batch, predict)
-        self.log("test_loss", loss, on_epoch=True, prog_bar=True, logger=True)
-        return loss
+        
+        mu, log_var = self.encode(batch)
+        #mu, log_var = self.fc_mu(x_encoded), self.fc_var(x_encoded)
+        std = torch.exp(log_var / 2)        
+        q = torch.distributions.Normal(mu, log_var)
+        z = q.rsample()
+        x_hat = self.decode(z)
+        p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
+
+        elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
+        
+        self.log_dict({
+            'elbo_test': elbo,
+            'kl_test': kl,
+            'recon_loss_test': recon_loss,
+            'test_loss': elbo
+        })
+
+        return elbo
     
 
     def validation_step(self, batch, batch_idx):
-        predict = self.forward(batch)
-        loss = self.loss_function(batch, predict)
-        self.log("val_loss", loss, on_epoch=True, prog_bar=True, logger=True)
-        return loss
+        
+        mu, log_var = self.encode(batch)
+        # = self.fc_mu(x_encoded), self.fc_var(x_encoded)
+        std = torch.exp(log_var / 2)        
+        q = torch.distributions.Normal(mu, log_var)
+        z = q.rsample()
+        x_hat = self.decode(z)
+        p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
+
+        elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
+
+        self.log_dict({
+            'elbo_val': elbo,
+            'kl_val': kl,
+            'recon_loss_val': recon_loss,
+            'val_loss': elbo
+        })
+
+        return elbo
 
 
     def load_model(self, path):
         self.model.load_state_dict(torch.load(path, map_location='cuda:0'), strict=False)
         print('Model Created!')
+
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)

@@ -122,6 +122,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         x = self.encoder(x)
+        print(x.shape)
         x = x.view(x.size(0), -1)
         # alternatively, use the following: result = torch.flatten(result, start_dim=1)
         return self.fc_mu(x), self.fc_var(x)
@@ -131,18 +132,13 @@ class baselineVAEAutoencoder(pl.LightningModule):
         return self.decoder(x)
 
 
-
     def training_step(self, batch, batch_idx):
         x = batch
         # encode x to get the mu and variance parameters
         x_encoded = self.encoder(x)
+        print(x_encoded.shape)
         mu, log_var = self.fc_mu(x_encoded), self.fc_var(x_encoded)
-        
-        print(torch.isfinite(x).all())
-        print(torch.isfinite(x_encoded).all()) # this yield nan sometimes
-        print(torch.isfinite(mu).all())
-        print(torch.isfinite(log_var).all())
-        
+
         # sample z from q
         std = torch.exp(log_var / 2)
         q = torch.distributions.Normal(mu, std)
@@ -161,7 +157,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
         kl = kl.mean()
         
         # elbo
-        print(kl.tolist(), recon_loss.tolist())
+        #print(kl.tolist(), recon_loss.tolist())
         elbo = (kl + self.hparams.beta * recon_loss)
 
         self.log_dict({
