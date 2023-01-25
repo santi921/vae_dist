@@ -24,7 +24,6 @@ class CNNAutoencoderLightning(pl.LightningModule):
         activation,
         dropout,
         batch_norm,
-        device,
         learning_rate,
         **kwargs
     ):
@@ -47,7 +46,6 @@ class CNNAutoencoderLightning(pl.LightningModule):
             'activation': activation,
             'dropout': dropout,
             'batch_norm': batch_norm,
-            'device': device,
             'kwargs': kwargs,
             'learning_rate': learning_rate
         }
@@ -127,7 +125,7 @@ class CNNAutoencoderLightning(pl.LightningModule):
 
 
     def loss_function(self, x, x_hat): 
-        return nn.MSELoss()(x_hat, x).to(self.device)
+        return nn.MSELoss()(x_hat, x)
         
 
     def training_step(self, batch, batch_idx):

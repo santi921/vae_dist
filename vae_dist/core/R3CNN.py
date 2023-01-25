@@ -7,7 +7,7 @@ from torch.nn import MSELoss
 
 from vae_dist.core.escnnlayers import R3Upsampling
 
-class e3CNN(pl.LightningModule):
+class R3CNN(pl.LightningModule):
     def __init__(
         self, 
         learning_rate, 

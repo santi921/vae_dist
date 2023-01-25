@@ -1,0 +1,10 @@
+{
+    "kernel_size": 5,
+    "latent_dim": 10,
+    "learning_rate": 0.0005,
+    "fully_connected_dims": [
+        100,
+        100,
+        100
+    ]
+}

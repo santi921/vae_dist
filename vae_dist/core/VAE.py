@@ -25,7 +25,6 @@ class baselineVAEAutoencoder(pl.LightningModule):
         dropout,
         batch_norm,
         beta,
-        device,
         learning_rate,
         **kwargs
     ):
@@ -49,7 +48,6 @@ class baselineVAEAutoencoder(pl.LightningModule):
             'dropout': dropout,
             'batch_norm': batch_norm,
             'beta': beta,
-            'device': device,
             'kwargs': kwargs,
             'learning_rate': learning_rate,
         }
@@ -122,7 +120,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         x = self.encoder(x)
-        print(x.shape)
+        #print(x.shape)
         x = x.view(x.size(0), -1)
         # alternatively, use the following: result = torch.flatten(result, start_dim=1)
         return self.fc_mu(x), self.fc_var(x)
@@ -136,7 +134,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
         x = batch
         # encode x to get the mu and variance parameters
         x_encoded = self.encoder(x)
-        print(x_encoded.shape)
+        #print(x_encoded.shape)
         mu, log_var = self.fc_mu(x_encoded), self.fc_var(x_encoded)
 
         # sample z from q
@@ -165,7 +163,8 @@ class baselineVAEAutoencoder(pl.LightningModule):
             'elbo_train': elbo,
             'kl_train': kl,
             'recon_loss_train': recon_loss,
-            'mape_train': mape,
+            'train_loss': elbo,
+            'mape_train': mape
         })
 
         return elbo
@@ -199,8 +198,9 @@ class baselineVAEAutoencoder(pl.LightningModule):
         self.log_dict({
             'elbo_test': elbo,
             'kl_test': kl,
-            'recon_loss_test': recon_loss, 
-            'mape_test': mape
+            'recon_loss_test': recon_loss,
+            'test_loss': elbo,
+            'test_mape': mape
         })
 
         return elbo
@@ -234,7 +234,8 @@ class baselineVAEAutoencoder(pl.LightningModule):
         self.log_dict({
             'elbo_val': elbo,
             'kl_val': kl,
-            'recon_loss_val': recon_loss, 
+            'recon_loss_val': recon_loss,
+            'val_loss': elbo,
             'mape_val': mape
         })
 

@@ -1,12 +1,42 @@
-import argparse
+import argparse, json
 from escnn import gspaces, nn                                         
 import torch                                                      
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor
 
 from vae_dist.core.O3VAE import R3VAE
+from vae_dist.core.R3CNN import R3CNN
+from vae_dist.core.VAE import baselineVAEAutoencoder
+from vae_dist.core.CNN import CNNAutoencoderLightning
 from vae_dist.dataset.dataset import FieldDataset, dataset_split_loader
 
+def construct_model(model, options):
+
+    if model == 'esvae':
+
+        group = gspaces.flipRot3dOnR3(maximum_frequency=10) 
+        input_out_reps = 3*[group.trivial_repr]
+        kernel_size = 5
+        feat_type_in  = nn.FieldType(group,  input_out_reps) 
+        feat_type_out = nn.FieldType(group,  input_out_reps)    
+        model = R3VAE(**options, group=group, feat_type_in=feat_type_in, feat_type_out=feat_type_out)
+    
+    elif model == 'escnn':
+
+        group = gspaces.flipRot3dOnR3(maximum_frequency=10) 
+        input_out_reps = 3*[group.trivial_repr]
+        kernel_size = 5
+        feat_type_in  = nn.FieldType(group,  input_out_reps) 
+        feat_type_out = nn.FieldType(group,  input_out_reps)  
+        model = R3CNN(**options, group=group, feat_type_in=feat_type_in, feat_type_out=feat_type_out)   
+
+    elif model == 'auto':
+        model = CNNAutoencoderLightning(**options)
+
+    elif model == 'vae':
+        model = baselineVAEAutoencoder(**options)
+
+    return model
 
 def main():              
     # create argparser that just takes a string for model type 
@@ -15,7 +45,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='escnn')
     parser.add_argument('--data', type=str, default='../../data/cpet/')
-    parser.add_argument('--gpu', type=int, default=0)
+    #parser.add_argument('--gpu', type=int, default=0)
 
     args = parser.parse_args()
 
@@ -24,7 +54,6 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
 
-    
     dataset_vanilla = FieldDataset(
         root, 
         transform=False, 
@@ -34,36 +63,30 @@ def main():
         )
 
     if model_select == 'escnn':
+        options = json.load(open('./options/options_escnn_default.json'))
         log_save_dir = "./log_version_escnn_1/"
+        model = construct_model("escnn", options)
 
 
     elif model_select == 'esvae':
+        options = json.load(open('./options/options_esvae_default.json'))
         log_save_dir = "./log_version_esvae_1/"
-        group = gspaces.flipRot3dOnR3(maximum_frequency=10) 
-        input_out_reps = 3*[group.trivial_repr]
-        kernel_size = 5
-        feat_type_in  = nn.FieldType(group,  input_out_reps) 
-        feat_type_out = nn.FieldType(group,  input_out_reps)    
-        model = R3VAE(
-            group = group,
-            feat_type_in = feat_type_in, 
-            feat_type_out = feat_type_out, 
-            kernel_size=kernel_size,
-            latent_dim=10, 
-            learning_rate=0.0005,
-            fully_connected_dims=[100, 100, 100]
-        )
+        model = construct_model("esvae", options)
 
     elif model_select == 'auto':
+        options = json.load(open('./options/options_cnn_default.json'))
         log_save_dir = "./log_version_auto_1/"
+        model = construct_model("auto", options)
+
     elif model_select == 'vae':
+        options = json.load(open('./options/options_vae_default.json'))
         log_save_dir = "./log_version_vae_1/"
+        model = construct_model("vae", options)
+
     else: 
         # throw error
         print("Model not found")
         return
-
-    
 
     # load model to gpu
     model.to(device)
@@ -92,7 +115,9 @@ def main():
         )
 
     model.eval()
+    # check if folder exists
+
     # save state dict
-    torch.save(model.state_dict(), "./log_version_esvae_1/autoenc_1.ckpt")
+    torch.save(model.state_dict(), log_save_dir + "/model_1.ckpt")
 
 main()
