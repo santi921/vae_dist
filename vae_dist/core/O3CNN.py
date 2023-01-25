@@ -154,21 +154,39 @@ class e3CNN(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
-        self.log("train_loss", loss)     
+        mape = torch.mean(torch.abs((predict - batch) / torch.abs(batch)))
+        #self.log("train_loss", loss)     
+        self.log_dict(
+            {
+                "training_loss": loss,
+                "training_mape": mape
+            })     
         return loss
 
 
     def test_step(self, batch, batch_idx):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
-        self.log("test_loss", loss, on_epoch=True, prog_bar=True, logger=True)
+        mape = torch.mean(torch.abs((predict - batch) / torch.abs(batch)))
+        self.log_dict(
+            {
+                "test_loss": loss,
+                "test_mape": mape
+            })        
+        
         return loss
     
 
     def validation_step(self, batch, batch_idx):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
-        self.log("val_loss", loss, on_epoch=True, prog_bar=True, logger=True)
+        #self.log("val_loss", loss, on_epoch=True, prog_bar=True, logger=True)
+        mape = torch.mean(torch.abs((predict - batch) / torch.abs(batch)))
+        self.log_dict(
+            {
+                "val_loss": loss,
+                "val_mape": mape
+            })
         return loss
 
 

@@ -159,11 +159,13 @@ class baselineVAEAutoencoder(pl.LightningModule):
         # elbo
         #print(kl.tolist(), recon_loss.tolist())
         elbo = (kl + self.hparams.beta * recon_loss)
+        mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
 
         self.log_dict({
             'elbo_train': elbo,
             'kl_train': kl,
-            'recon_loss_train': recon_loss
+            'recon_loss_train': recon_loss,
+            'mape_train': mape,
         })
 
         return elbo
@@ -192,11 +194,13 @@ class baselineVAEAutoencoder(pl.LightningModule):
 
         # elbo
         elbo = (kl + self.hparams.beta * recon_loss)
+        mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
 
         self.log_dict({
             'elbo_test': elbo,
             'kl_test': kl,
-            'recon_loss_test': recon_loss
+            'recon_loss_test': recon_loss, 
+            'mape_test': mape
         })
 
         return elbo
@@ -225,11 +229,13 @@ class baselineVAEAutoencoder(pl.LightningModule):
 
         # elbo
         elbo = (kl + self.hparams.beta * recon_loss)
+        mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
 
         self.log_dict({
             'elbo_val': elbo,
             'kl_val': kl,
-            'recon_loss_val': recon_loss
+            'recon_loss_val': recon_loss, 
+            'mape_val': mape
         })
 
         return elbo

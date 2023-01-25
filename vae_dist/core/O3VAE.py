@@ -180,12 +180,14 @@ class R3VAE(pl.LightningModule):
         p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
+        mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
         
         self.log_dict({
             'elbo_train': elbo,
             'kl_train': kl,
             'recon_loss_train': recon_loss,
-            'train_loss': elbo
+            'train_loss': elbo,
+            'mape_train': mape
         })
 
         return elbo
@@ -202,12 +204,14 @@ class R3VAE(pl.LightningModule):
         p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
-        
+        mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
+
         self.log_dict({
             'elbo_test': elbo,
             'kl_test': kl,
             'recon_loss_test': recon_loss,
-            'test_loss': elbo
+            'test_loss': elbo,
+            'test_mape': mape
         })
 
         return elbo
@@ -224,12 +228,14 @@ class R3VAE(pl.LightningModule):
         p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
+        mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
 
         self.log_dict({
             'elbo_val': elbo,
             'kl_val': kl,
             'recon_loss_val': recon_loss,
-            'val_loss': elbo
+            'val_loss': elbo,
+            'mape_val': mape
         })
 
         return elbo
