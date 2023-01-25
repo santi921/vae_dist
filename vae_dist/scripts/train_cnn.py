@@ -76,7 +76,9 @@ def main():
         accumulate_grad_batches=5, 
         callbacks=[
             pl.callbacks.EarlyStopping(monitor='val_loss', patience=50, verbose = False),
-            lr_monitor]
+            lr_monitor],
+        enable_checkpointing=True,
+        default_root_dir="./log_version_cnn_1/"
     )
 
     trainer.fit(model, dataset_loader_train, dataset_loader_test)

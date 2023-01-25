@@ -47,29 +47,29 @@ def main():
         num_workers=0
     )
 
+    defaults = {
+        "irreps" : None,
+        "in_channels" : 3,
+        "out_channels" : 16,
+        "kernel_size" : 5,
+        "stride" : 1,
+        "padding" : 0,
+        "dilation" : 1,
+        "groups" : 1,
+        "bias" : True,
+        "padding_mode" : 'zeros',
+        "latent_dim" : 4, # final vae hidden layer
+        "num_layers" : 2, # not used rn
+        "hidden_dim" : 32,
+        "activation" : 'relu', # not used rn
+        "dropout" : 0.1, # not used rn
+        "batch_norm" : False, # not used rn
+        "beta" : 1.0,
+        "device" : device,
+        "learning_rate" : 0.001
+    }
 
-
-    vae = baselineVAEAutoencoder(
-        irreps = None, # not used rn 
-        in_channels = 3,
-        out_channels = 16,
-        kernel_size = 5,
-        stride = 1,
-        padding = 0,
-        dilation = 1,
-        groups = 1,
-        bias = True,
-        padding_mode = 'zeros',
-        latent_dim = 4, # final vae hidden layer 
-        num_layers = 2, # not used rn 
-        hidden_dim = 32,
-        activation = 'relu', # not used rn 
-        dropout = 0.1, # not used rn 
-        batch_norm = False, # not used rn 
-        beta = 1.0,
-        device = device,
-        learning_rate = 0.001
-    )
+    vae = baselineVAEAutoencoder(**defaults)
 
     trainer = pl.Trainer(
             gpus=1, 
@@ -81,7 +81,9 @@ def main():
             accumulate_grad_batches=5,
             gradient_clip_val=1.0, 
             gradient_clip_algorithm='value',
-            precision=16
+            precision=16,
+            enable_checkpointing=True,
+            default_root_dir="./log_version_vae_1/"
         )
     trainer.fit(vae, dataset_loader_train, dataset_loader_test)
 

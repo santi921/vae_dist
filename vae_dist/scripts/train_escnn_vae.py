@@ -56,7 +56,7 @@ def main():
             pl.callbacks.EarlyStopping(monitor='val_loss', patience=50, verbose = False),
             lr_monitor],
         enable_checkpointing=True,
-        default_root_dir="./log_version_auto_1/"
+        default_root_dir="./log_version_esvae_1/"
 
     )
 
