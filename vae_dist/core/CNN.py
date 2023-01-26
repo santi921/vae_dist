@@ -103,7 +103,7 @@ class CNNAutoencoderLightning(pl.LightningModule):
         )
         modules_dec.append(nn.Tanh())
         self.decoder = nn.Sequential(*modules_dec)
-
+        self.model = nn.Sequential(self.encoder, self.decoder)
         #self.decoder.to(self.device)
         #self.encoder.to(self.device)
         #summary(self.encoder, (3, 21, 21, 21), device="cuda")
@@ -119,6 +119,8 @@ class CNNAutoencoderLightning(pl.LightningModule):
     def encode(self, x):
         return self.encoder(x)
 
+    def latent(self, x):
+        return self.encode(x)
 
     def decode(self, x):
         return self.decoder(x)
@@ -181,3 +183,6 @@ class CNNAutoencoderLightning(pl.LightningModule):
             }
         return [optimizer], [lr_scheduler]
     
+    def load_model(self, path):
+        self.model.load_state_dict(torch.load(path, map_location='cuda:0'), strict=False)
+        print('Model Created!')

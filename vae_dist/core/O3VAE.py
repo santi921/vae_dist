@@ -3,7 +3,7 @@ import torch
 import pytorch_lightning as pl
 
 from torchsummary import summary
-from torch.nn import MSELoss
+from torch.nn import MSELoss, Sequential
 from torch.nn import functional as F
 
 from vae_dist.core.escnnlayers import R3Upsampling
@@ -130,11 +130,11 @@ class R3VAE(pl.LightningModule):
         self.decoder = nn.SequentialModule(*self.decoder_conv_list)
         self.encoder = nn.SequentialModule(*self.encoder_conv_list)
         # summary on encoder    
-        print(self.encoder)
-        print(self.encoder_fully_net)
-        print(self.decoder_fully_net)
-        print(self.decoder)
-        
+        #print(self.encoder)
+        #print(self.encoder_fully_net)
+        #print(self.decoder_fully_net)
+        #print(self.decoder)
+        #self.model = nn.SequentialModule(self.encoder, self.encoder_fully_net, self.decoder_fully_net, self.decoder)
         #summary(self.encoder, (1, 32, 32, 32))
         
     def encode(self, x):
@@ -142,7 +142,8 @@ class R3VAE(pl.LightningModule):
         x = self.encoder(x)
         x = x.tensor
         x = self.encoder_fully_net(x)
-        return torch.clamp(self.fc_mu(x), min=0.000001), torch.clamp(self.fc_var(x), min=0.000001)
+        mu, var = torch.clamp(self.fc_mu(x), min=0.000001), torch.clamp(self.fc_var(x), min=0.000001)
+        return mu, var
         
 
     def decode(self, x):
@@ -152,8 +153,15 @@ class R3VAE(pl.LightningModule):
         x = self.decoder(x)
         x = x.tensor
         return x
+    
+    def latent(self, x): 
+        mu, var = self.encode(x)
+        std = torch.exp(var / 2)
+        q = torch.distributions.Normal(mu, std)
+        z = q.rsample()    
+        return z 
 
-
+        
     def forward(self, x: torch.Tensor):
         mu, var = self.encode(x)
         std = torch.exp(var / 2)
@@ -242,7 +250,7 @@ class R3VAE(pl.LightningModule):
 
 
     def load_model(self, path):
-        self.model.load_state_dict(torch.load(path, map_location='cuda:0'), strict=False)
+        self.load_state_dict(torch.load(path, map_location='cuda:0'), strict=False)
         print('Model Created!')
 
 

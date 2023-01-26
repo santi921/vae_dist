@@ -119,9 +119,7 @@ class R3CNN(pl.LightningModule):
         self.decoder_conv_list.append(R3Upsampling(in_type_og, scale_factor=3, mode='nearest', align_corners=False))
 
         self.decoder = nn.SequentialModule(*self.decoder_conv_list)
-
-        self.model = nn.SequentialModule(self.encoder, self.decoder)
-        
+        #self.model = nn.SequentialModule(self.encoder, self.encoder_fully_net, self.decoder_fully_net, self.decoder)
 
     def encode(self, x):
         x = self.feat_type_in(x)
@@ -140,6 +138,9 @@ class R3CNN(pl.LightningModule):
         x = x.tensor
         return x
 
+    def latent(self, x): 
+        x = self.encode(x)
+        return x 
 
     def forward(self, x: torch.Tensor):
         x = self.encode(x)
@@ -191,7 +192,7 @@ class R3CNN(pl.LightningModule):
 
 
     def load_model(self, path):
-        self.model.load_state_dict(torch.load(path, map_location='cuda:0'), strict=False)
+        self.load_state_dict(torch.load(path, map_location='cuda:0'), strict=False)
         print('Model Created!')
 
 

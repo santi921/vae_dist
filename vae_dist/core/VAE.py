@@ -108,6 +108,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
         modules_dec.append(nn.Sigmoid())
         self.encoder = nn.Sequential(*modules_enc)
         self.decoder = nn.Sequential(*modules_dec)
+        self.model = nn.Sequential(self.encoder, self.decoder)
 
     def forward(self, x  : torch.Tensor) -> torch.Tensor:
         mu, var = self.encoder(x)
@@ -125,17 +126,25 @@ class baselineVAEAutoencoder(pl.LightningModule):
         # alternatively, use the following: result = torch.flatten(result, start_dim=1)
         return self.fc_mu(x), self.fc_var(x)
 
+    def latent(self, x: torch.Tensor) -> torch.Tensor:
+        mu, log_var = self.encode(x)
+        std = torch.exp(log_var / 2)
+        q = torch.distributions.Normal(mu, std)
+        z = q.rsample()
+        return z
 
+        
     def decode(self, x: torch.Tensor)  -> torch.Tensor:
         return self.decoder(x)
+
 
 
     def training_step(self, batch, batch_idx):
         x = batch
         # encode x to get the mu and variance parameters
-        x_encoded = self.encoder(x)
+        mu, log_var = self.encode(x)
         #print(x_encoded.shape)
-        mu, log_var = self.fc_mu(x_encoded), self.fc_var(x_encoded)
+        #mu, log_var = self.fc_mu(x_encoded), self.fc_var(x_encoded)
 
         # sample z from q
         std = torch.exp(log_var / 2)
@@ -261,3 +270,8 @@ class baselineVAEAutoencoder(pl.LightningModule):
             "monitor": "elbo_val"
             }
         return [optimizer], [lr_scheduler]
+
+
+    def load_model(self, path):
+        self.model.load_state_dict(torch.load(path, map_location='cuda:0'), strict=False)
+        print('Model Created!')

@@ -3,40 +3,8 @@ from escnn import gspaces, nn
 import torch                                                      
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor
-
-from vae_dist.core.O3VAE import R3VAE
-from vae_dist.core.R3CNN import R3CNN
-from vae_dist.core.VAE import baselineVAEAutoencoder
-from vae_dist.core.CNN import CNNAutoencoderLightning
 from vae_dist.dataset.dataset import FieldDataset, dataset_split_loader
-
-def construct_model(model, options):
-
-    if model == 'esvae':
-
-        group = gspaces.flipRot3dOnR3(maximum_frequency=10) 
-        input_out_reps = 3*[group.trivial_repr]
-        kernel_size = 5
-        feat_type_in  = nn.FieldType(group,  input_out_reps) 
-        feat_type_out = nn.FieldType(group,  input_out_reps)    
-        model = R3VAE(**options, group=group, feat_type_in=feat_type_in, feat_type_out=feat_type_out)
-    
-    elif model == 'escnn':
-
-        group = gspaces.flipRot3dOnR3(maximum_frequency=10) 
-        input_out_reps = 3*[group.trivial_repr]
-        kernel_size = 5
-        feat_type_in  = nn.FieldType(group,  input_out_reps) 
-        feat_type_out = nn.FieldType(group,  input_out_reps)  
-        model = R3CNN(**options, group=group, feat_type_in=feat_type_in, feat_type_out=feat_type_out)   
-
-    elif model == 'auto':
-        model = CNNAutoencoderLightning(**options)
-
-    elif model == 'vae':
-        model = baselineVAEAutoencoder(**options)
-
-    return model
+from vae_dist.core.training import construct_model
 
 def main():              
     # create argparser that just takes a string for model type 
