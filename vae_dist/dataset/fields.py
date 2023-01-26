@@ -2,7 +2,7 @@ import os
 import numpy as np 
 
 
-def split_and_filter(mat, cutoff = 95, min_max = True, std_mean = False):
+def split_and_filter(mat, cutoff_low = 95, cutoff_high= 99.99999, min_max = True, std_mean = False):
     """
     Filters some noise in the data by setting all values below a certain percentile to 0.
     Also normalizes the data by either min-max or standard deviation and mean.
@@ -31,10 +31,12 @@ def split_and_filter(mat, cutoff = 95, min_max = True, std_mean = False):
         w = mat[:,:,:,2].flatten()
 
     component_distro = [np.sqrt(u[ind]**2 + v[ind]**2 + w[ind]**2) for ind in range(len(u))]
-    cutoff = np.percentile(component_distro, cutoff)
+    cutoff_low = np.percentile(component_distro, cutoff_low)
+    cutoff_high = np.percentile(component_distro, cutoff_high)
 
     for ind, i in enumerate(component_distro): 
-        if (i < cutoff): 
+        #if (i < cutoff): 
+        if (i < cutoff_low or i > cutoff_high):
             u[ind], v[ind], w[ind] = 0,0,0  
 
     u = np.around(u, decimals=2)
@@ -44,16 +46,19 @@ def split_and_filter(mat, cutoff = 95, min_max = True, std_mean = False):
     return u, v, w
 
 
-def pull_fields(root): 
+def pull_fields(root, ret_names = False): 
     # mat pull on every file in root ending in .dat
     # returns a list of 4D numpy arrays of shape (x, y, z, 3) where x, y, z are the number of steps in each direction and 3 is the number of components
     mats = []
+    names = []
     for file in os.listdir(root):
         if file.endswith(".dat"):
             mat, shape = mat_pull(root + file)
             mats.append(mat)
+            names.append(file)
     mats = np.array(mats)
-    
+    if ret_names: 
+        return mats, shape, names
     return mats, shape
 
 
@@ -69,7 +74,16 @@ def mat_pull(file):
 
     for ind, i in enumerate(lines[7:]):
         line_split = i.split()
-        #print(i)
+        # warn if number is larger than 10 or smaller than -10
+        #if (float(line_split[-3]) > 100 or float(line_split[-3]) < -100):
+        #    print("Warning: value of {} is larger than 100 or smaller than -100".format(float(line_split[-3])))
+        #    print(file) 
+        #if (float(line_split[-2]) > 100 or float(line_split[-2]) < -100):
+        #    print("Warning: value of {} is larger than 100 or smaller than -100".format(float(line_split[-2])))
+        #    print(file) 
+        #if (float(line_split[-1]) > 100 or float(line_split[-1]) < -100):
+        #    print("Warning: value of {} is larger than 100 or smaller than -100".format(float(line_split[-1])))
+        #    print(file)    
         mat[int(ind/(steps_z*steps_y)), int(ind/steps_z % steps_y), ind%steps_z, 0] = float(line_split[-3])
         mat[int(ind/(steps_z*steps_y)), int(ind/steps_z % steps_y), ind%steps_z, 1] = float(line_split[-2])
         mat[int(ind/(steps_z*steps_y)), int(ind/steps_z % steps_y), ind%steps_z, 2] = float(line_split[-1])

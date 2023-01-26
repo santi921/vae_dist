@@ -12,12 +12,23 @@ class R3CNN(pl.LightningModule):
         self, 
         learning_rate, 
         group, 
+        gspace,
         feat_type_in, 
-        feat_type_out, 
+        feat_type_out,
         kernel_size=5, 
         latent_dim=1, 
         fully_connected_dims = [64]):
-
+        """        
+        stride,
+        padding,
+        dilation,
+        groups,
+        bias,
+        padding_mode,
+        num_layers,
+        activation,
+        dropout,
+        batch_norm,"""
         #super(self).__init__()
         super().__init__()
         self.learning_rate = learning_rate
@@ -30,8 +41,22 @@ class R3CNN(pl.LightningModule):
             'learning_rate': learning_rate,
             'latent_dim': latent_dim,
             'group': group,
-            'fully_connected_dims': fully_connected_dims
+            'gspace': gspace,
+            'fully_connected_dims': fully_connected_dims,
+            
+
         }
+        """'padding': padding,
+        'dilation': dilation,
+        'groups': groups,
+        'bias': bias,
+        'padding_mode': padding_mode,
+        'num_layers': num_layers,
+        'activation': activation,
+        'dropout': dropout,
+        'batch_norm': batch_norm
+        'stride': stride,
+        """
         self.hparams.update(params)
         #self.save_hyperparameters()
 
@@ -45,7 +70,8 @@ class R3CNN(pl.LightningModule):
         self.decoder_conv_list = [] 
         self.encoder_conv_list = []
 
-        self.group = group     
+        self.group = group   
+        self.gspace = gspace  
         self.feat_type_in  = feat_type_in
         self.feat_type_out = feat_type_out
         self.feat_type_hidden = nn.FieldType(self.group, latent_dim*[self.group.trivial_repr])
@@ -58,14 +84,14 @@ class R3CNN(pl.LightningModule):
         ######################### Encoder ########################################
         in_type_og  = feat_type_in        
         
-        out_type = nn.FieldType(self.group, self.channels_outer*[self.group.trivial_repr])
+        out_type = nn.FieldType(self.gspace, self.channels_outer*[self.gspace.trivial_repr])
         # we choose 24 feature fields, each transforming under the regular representation of C8        
         self.encoder_conv_list.append(nn.R3Conv(in_type_og, out_type, kernel_size=kernel_size, padding=0, bias=False))
         self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))
         self.encoder_conv_list.append(nn.PointwiseAvgPoolAntialiased3D(out_type, sigma=0.66, stride=3))
 
         in_type = out_type
-        out_type = nn.FieldType(self.group, self.channels_inner*[self.group.trivial_repr])
+        out_type = nn.FieldType(self.gspace, self.channels_inner*[self.gspace.trivial_repr])
         self.encoder_conv_list.append(nn.R3Conv(in_type, out_type, kernel_size=kernel_size, padding=0, bias=False))
         self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))
         self.encoder_conv_list.append(nn.PointwiseAvgPoolAntialiased3D(out_type, sigma=0.66, stride=3))

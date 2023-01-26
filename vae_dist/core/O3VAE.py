@@ -1,4 +1,4 @@
-from escnn import nn                                         
+from escnn import nn, group                                        
 import torch                                                      
 import pytorch_lightning as pl
 
@@ -13,7 +13,8 @@ class R3VAE(pl.LightningModule):
     def __init__(
         self, 
         learning_rate, 
-        group, 
+        gspace,  
+        group,
         feat_type_in, 
         feat_type_out, 
         kernel_size=5, 
@@ -23,6 +24,7 @@ class R3VAE(pl.LightningModule):
 
         super().__init__()
         self.learning_rate = learning_rate
+        
         params = {
             'in_type': feat_type_in,
             'out_type': feat_type_out,
@@ -32,6 +34,7 @@ class R3VAE(pl.LightningModule):
             'learning_rate': learning_rate,
             'latent_dim': latent_dim,
             'group': group,
+            'gspace': gspace,
             'fully_connected_dims': fully_connected_dims,
             'beta': beta
         }
@@ -48,10 +51,11 @@ class R3VAE(pl.LightningModule):
         self.decoder_conv_list = [] 
         self.encoder_conv_list = []
 
-        self.group = group     
+        self.gspace = gspace     
+        self.group = group
         self.feat_type_in  = feat_type_in
         self.feat_type_out = feat_type_out
-        self.feat_type_hidden = nn.FieldType(self.group, latent_dim*[self.group.trivial_repr])
+        self.feat_type_hidden = nn.FieldType(self.gspace, latent_dim*[self.gspace.trivial_repr])
         self.channels_inner = 48
         self.channels_outer = 24
         
@@ -65,18 +69,40 @@ class R3VAE(pl.LightningModule):
         ######################### Encoder ########################################
         in_type_og  = feat_type_in        
         
-        out_type = nn.FieldType(self.group, self.channels_outer*[self.group.trivial_repr])
+        out_type = nn.FieldType(self.gspace, self.channels_outer*[self.gspace.trivial_repr])
         # we choose 24 feature fields, each transforming under the regular representation of C8        
         self.encoder_conv_list.append(nn.R3Conv(in_type_og, out_type, kernel_size=kernel_size, padding=0, bias=False))
-        self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))
+        self.encoder_conv_list.append(
+            nn.QuotientFourierELU(
+                gspace = self.gspace, 
+                channels=3, 
+                irreps=self.group.bl_sphere_representation(L=1).irreps,
+                grid = self.group.sphere_grid(type='thomson', N=16),
+                subgroup_id=(True,'so3'),
+                inplace=True
+                )
+            )
+        #self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))
         self.encoder_conv_list.append(nn.PointwiseAvgPoolAntialiased3D(out_type, sigma=0.66, stride=3))
 
         in_type = out_type
-        out_type = nn.FieldType(self.group, self.channels_inner*[self.group.trivial_repr])
+        out_type = nn.FieldType(self.gspace, self.channels_inner*[self.gspace.trivial_repr])
         self.encoder_conv_list.append(nn.R3Conv(in_type, out_type, kernel_size=kernel_size, padding=0, bias=False))
-        self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))
+        self.encoder_conv_list.append(
+            nn.QuotientFourierELU(
+                gspace = self.gspace, 
+                channels = 3, 
+                irreps=self.group.bl_sphere_representation(L=1).irreps,
+                grid = self.group.sphere_grid(type='thomson', N=16),
+                subgroup_id=(True, 'so3'),
+                inplace=True
+                )
+            )
+        #self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))
         self.encoder_conv_list.append(nn.PointwiseAvgPoolAntialiased3D(out_type, sigma=0.66, stride=3))
-        self.encoder_conv_list.append(nn.GroupPooling(out_type))
+        self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))
+        
+        #self.encoder_conv_list.append(nn.GroupPooling(out_type))
 
         # number of output channels
         
@@ -106,7 +132,6 @@ class R3VAE(pl.LightningModule):
             self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
 
             
-
         # reverse the list
         self.list_dec_fully.reverse()
             
@@ -153,6 +178,7 @@ class R3VAE(pl.LightningModule):
         x = self.decoder(x)
         x = x.tensor
         return x
+   
     
     def latent(self, x): 
         mu, var = self.encode(x)

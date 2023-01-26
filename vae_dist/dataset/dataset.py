@@ -1,27 +1,34 @@
 import torch 
 from vae_dist.dataset.fields import pull_fields
 import numpy as np 
+import matplotlib.pyplot as plt
 
 # create class for dataset
 class FieldDataset(torch.utils.data.Dataset):
     def __init__(self, root, transform=None, augmentation=None, standardize=True, device='cpu'):
-        fields, shape = pull_fields(root)
+        fields, shape, names = pull_fields(root, ret_names=True)
         data = fields.reshape([len(fields), 3, shape[0], shape[1], shape[2]])
-        
 
-
-        #self.data_std = data.std(axis = (0,1,2,3), keepdims=True)
-        #self.data_mean = data.mean(axis = (0,1,2,3), keepdims=True)
-        #self.data_max = data.max(axis = (0,1,2,3), keepdims=True)
-        #self.data_min = data.min(axis = (0,1,2,3), keepdims=True)
         
-        # compute maximum vector magnitude
-        self.max_mag = np.sqrt((data**2).sum(axis=1)).max()
+        # compute magnitude of vectors in data and store
+        #print(data.shape)
+        self.mags = np.sqrt((data**2).sum(axis=1))
+        #print(self.mags.shape)
+        # find index of max magnitude
+        max_mag_ind = np.unravel_index(self.mags.argmax(), self.mags.shape)
+        #print(max_mag_ind)
+        #print(names[max_mag_ind[0]])
         # compute minimum vector magnitude
-        self.min_mag = np.sqrt((data**2).sum(axis=1)).min()
+        self.min_mag = self.mags.min()
+        self.max_mag = self.mags.max()
+        self.st_mag = self.mags.std()
+        self.mean_mag = self.mags.mean()
+        #print(self.min_mag, self.max_mag, self.st_mag, self.mean_mag)
 
         if standardize:
-            data = (data - self.min_mag) / (self.max_mag - self.min_mag + 0.0001)
+            # standardize every field 
+            data = (data - self.mean_mag) / (self.st_mag + 0.0001)
+            #data = (data - self.min) / (self.max - self.min + 0.0001)
         # print if any values are nan
         if np.isnan(data).any():
             print("Nan values in dataset")
@@ -40,6 +47,7 @@ class FieldDataset(torch.utils.data.Dataset):
         self.transform = transform        
         self.device = device
         self.standardize = standardize
+        self.names = names
         
         
     def __len__(self):

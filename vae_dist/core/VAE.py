@@ -16,6 +16,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
         padding,
         dilation,
         groups,
+        gspace,
         bias,
         padding_mode,
         latent_dim,
@@ -99,7 +100,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
                     stride = self.hparams.stride,
                     padding = self.hparams.padding,
                     dilation = self.hparams.dilation,
-                    groups = self.hparams.groups,
+                    groups = self.hparams.gspace,
                     bias = self.hparams.bias,
                     padding_mode = self.hparams.padding_mode,
             )
@@ -111,7 +112,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
         self.model = nn.Sequential(self.encoder, self.decoder)
 
     def forward(self, x  : torch.Tensor) -> torch.Tensor:
-        mu, var = self.encoder(x)
+        mu, var = self.encode(x)
         std = torch.exp(var / 2)
         q = torch.distributions.Normal(mu, std)
         z = q.rsample()       
@@ -125,6 +126,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
         x = x.view(x.size(0), -1)
         # alternatively, use the following: result = torch.flatten(result, start_dim=1)
         return self.fc_mu(x), self.fc_var(x)
+
 
     def latent(self, x: torch.Tensor) -> torch.Tensor:
         mu, log_var = self.encode(x)
