@@ -9,12 +9,12 @@
     "groups": 1,
     "bias": true,
     "padding_mode": "zeros",
-    "latent_dim": 4,
+    "latent_dim": 2,
     "num_layers": 2,
-    "hidden_dim": 32,
+    "hidden_dim":2,
     "activation": "relu",
     "dropout": 0.1,
     "batch_norm": false,
     "beta": 1.0,
-    "learning_rate": 0.01
+    "learning_rate": 0.0001
 }
