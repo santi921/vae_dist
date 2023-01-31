@@ -1,5 +1,5 @@
 from escnn import nn                                         
-import torch                                                      
+import torch, wandb                                                      
 import pytorch_lightning as pl
 
 from torchsummary import summary
@@ -17,7 +17,8 @@ class R3CNN(pl.LightningModule):
         feat_type_out,
         kernel_size=5, 
         latent_dim=1, 
-        fully_connected_dims = [64]):
+        fully_connected_dims = [64],
+        log_wandb=False):
         """        
         stride,
         padding,
@@ -43,8 +44,7 @@ class R3CNN(pl.LightningModule):
             'group': group,
             'gspace': gspace,
             'fully_connected_dims': fully_connected_dims,
-            
-
+            'log_wandb': log_wandb
         }
         """'padding': padding,
         'dilation': dilation,
@@ -195,12 +195,13 @@ class R3CNN(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         mape = torch.mean(torch.abs((predict - batch) / torch.abs(batch)))
-        #self.log("train_loss", loss)     
-        self.log_dict(
-            {
-                "training_loss": loss,
-                "training_mape": mape
-            })     
+        out_dict = {
+            "training_loss": loss,
+            "training_mape": mape
+            }     
+        if self.hparams.log_wandb:wandb.log(out_dict)
+        self.log_dict(out_dict)
+          
         return loss
 
 
@@ -208,12 +209,13 @@ class R3CNN(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         mape = torch.mean(torch.abs((predict - batch) / torch.abs(batch)))
-        self.log_dict(
-            {
-                "test_loss": loss,
-                "test_mape": mape
-            })        
-        
+     
+        out_dict = {
+            "test_loss": loss,
+            "test_mape": mape
+        }
+        if self.hparams.log_wandb:wandb.log(out_dict)
+        self.log_dict(out_dict)
         return loss
     
 
@@ -222,11 +224,13 @@ class R3CNN(pl.LightningModule):
         loss = self.loss_function(batch, predict)
         #self.log("val_loss", loss, on_epoch=True, prog_bar=True, logger=True)
         mape = torch.mean(torch.abs((predict - batch) / torch.abs(batch)))
-        self.log_dict(
-            {
-                "val_loss": loss,
-                "val_mape": mape
-            })
+        
+        out_dict = {
+            "val_loss": loss,
+            "val_mape": mape
+        }
+        if self.hparams.log_wandb:wandb.log(out_dict)
+        self.log_dict(out_dict)
         return loss
 
 

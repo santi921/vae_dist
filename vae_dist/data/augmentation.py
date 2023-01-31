@@ -1,12 +1,14 @@
 import numpy as np 
 import torch 
 from torch.functional import F
-
+from copy import deepcopy
 class Augment(object):
-    def __init__(self, xy = True, z = False, rot = 0):
+    def __init__(self, xy = True, z = False, rot = -1):
         self.xy = xy
         self.z = z
         self.rot = rot 
+        # assert that rot is -1, 0, 2, or 4
+        assert self.rot in [-1, 0, 2, 4], "rot must be -1, 0, 2, or 4"
         
 
     def __call__(self, mat):
@@ -18,16 +20,19 @@ class Augment(object):
         for _, i in enumerate(mat):
             x_aug = augment_mat_field(i, self.xy, self.z, self.rot)
             [full_aug.append(j) for j in x_aug]
-        print(len(full_aug))
+        
+            print(len(full_aug))
+
         return np.array(full_aug)    
 
 
 def augment_mat_field(mat, xy, z, rot = 0):
         aug_mat = []
-        
+        aug_mat.append(mat)
+        print(mat.shape)
         if(xy):
-            x_flip = np.array(np.flip(mat, axis = 0), dtype=float)
-            y_flip = np.array(np.flip(mat, axis = 1), dtype=float)
+            x_flip = np.array(np.flip(mat, axis = 1), dtype=float)
+            y_flip = np.array(np.flip(mat, axis = 0), dtype=float)
             xy_flip = np.array(np.flip(np.flip(mat, axis = 1), axis = 0), dtype=float)
 
             x_flip[:,:,:,0] = -1*x_flip[:,:,:,0]
@@ -35,27 +40,28 @@ def augment_mat_field(mat, xy, z, rot = 0):
             xy_flip[:,:,:,0] = -1*xy_flip[:,:,:,0]
             xy_flip[:,:,:,1] = -1*xy_flip[:,:,:,1]
             
-            aug_mat.append(mat)
             aug_mat.append(x_flip)
             aug_mat.append(y_flip)
             aug_mat.append(xy_flip)
 
         if(z):
             z_flip = np.array(np.flip(mat, axis = 2), dtype=float)
-            xz_flip = np.array(np.flip(np.flip(mat, axis = 0), axis = 2), dtype=float)
-            yz_flip = np.array(np.flip(np.flip(mat, axis = 1), axis = 2), dtype=float)
-            xyz_flip = np.array(np.flip(np.flip(np.flip(mat, axis = 2), axis = 1), axis = 0), dtype=float)
+            xz_flip = np.array(np.flip(np.flip(mat, axis = 1), axis = 2), dtype=float)
+            yz_flip = np.array(np.flip(np.flip(mat, axis = 0), axis = 2), dtype=float)
+            xyz_flip = np.array(np.flip(np.flip(np.flip(mat, axis = 0), axis = 1), axis = 2), dtype=float)
 
-            z_flip[:,:,:,0] = -1*z_flip[:,:,:,0]
+            z_flip[:,:,:, 2]= -1*z_flip[:,:,:, 2]
 
-            xz_flip[:,:,:,0] = -1*xz_flip[:,:,:,0]
-            xz_flip[:,:,:,2] = -1*xz_flip[:,:,:,2]
+            xz_flip[:,:,:, 2]= -1*xz_flip[:,:,:,2]
+            xz_flip[:,:,:, 0]= -1*xz_flip[:,:,:,0]
+            
             yz_flip[:,:,:,1] = -1*yz_flip[:,:,:,1]
             yz_flip[:,:,:,2] = -1*yz_flip[:,:,:,2]
 
-            xyz_flip[:,:,:,0] = -1*xyz_flip[:,:,:,0]
-            xyz_flip[:,:,:,1] = -1*xyz_flip[:,:,:,1]
-            xyz_flip[:,:,:,2] = -1*xyz_flip[:,:,:,2]
+            xyz_flip[:,:,:, 0] = -1*xyz_flip[:,:,:, 0]
+            xyz_flip[:,:,:, 1] = -1*xyz_flip[:,:,:, 1]
+            xyz_flip[:,:,:, 2] = -1*xyz_flip[:,:,:, 2]
+            
             
             aug_mat.append(z_flip)
             aug_mat.append(xz_flip)
@@ -65,12 +71,15 @@ def augment_mat_field(mat, xy, z, rot = 0):
         if(rot>0):
             if rot == 4:
                 # add 90, 180, 270 rotations
-                aug_mat.append(np.rot90(mat, axes = (0,1)))
-                aug_mat.append(np.rot90(mat, axes = (0,1), k = 2))
-                aug_mat.append(np.rot90(mat, axes = (0,1), k = 3))
+                aug_mat.append(np.rot90(mat, axes = (1,2)))
+                aug_mat.append(np.rot90(mat, axes = (1,2), k = 2))
+                aug_mat.append(np.rot90(mat, axes = (1,2), k = 3))
             elif rot == 2:
                 # add 180
-                aug_mat.append(np.rot90(mat, axes = (0,1), k = 2))
+                rot = np.rot90(deepcopy(mat), axes = (1,2), k = 2)
+                rot[:,:,:,0] = -1*rot[:,:,:,0]
+                rot[:,:,:,2] = -1*rot[:,:,:,2]
+                aug_mat.append(rot)
         return aug_mat 
 
 

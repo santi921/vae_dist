@@ -1,5 +1,5 @@
 import torch.nn as nn
-import torch
+import torch, wandb
 #from torchConvNd import ConvNd, ConvTransposeNd
 from torchsummary import summary
 from vae_dist.core.layers import UpConvBatch, ConvBatch, ResNetBatch
@@ -25,6 +25,7 @@ class CNNAutoencoderLightning(pl.LightningModule):
         dropout,
         batch_norm,
         learning_rate,
+        log_wandb=False,
         **kwargs
     ):
         super().__init__()
@@ -47,7 +48,8 @@ class CNNAutoencoderLightning(pl.LightningModule):
             'dropout': dropout,
             'batch_norm': batch_norm,
             'kwargs': kwargs,
-            'learning_rate': learning_rate
+            'learning_rate': learning_rate,
+            'log_wandb': log_wandb
         }
         self.hparams.update(params)
         self.save_hyperparameters()
@@ -134,10 +136,12 @@ class CNNAutoencoderLightning(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         mape = torch.mean(torch.abs((batch - batch) / torch.abs(batch)))
-        self.log_dict({
+        out_dict = {
             'train_loss': loss, 
             'mape_train': mape
-        }) 
+        }
+        wandb.log(out_dict)
+        self.log_dict(out_dict)
         return loss
 
 
@@ -145,10 +149,12 @@ class CNNAutoencoderLightning(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         mape = torch.mean(torch.abs((batch - batch) / torch.abs(batch)))
-        self.log_dict({
+        out_dict = {
             'test_loss': loss, 
             'mape_test': mape
-        })
+        }
+        wandb.log(out_dict)
+        self.log_dict(out_dict)
         return loss
     
 
@@ -156,10 +162,12 @@ class CNNAutoencoderLightning(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         mape = torch.mean(torch.abs((batch - batch) / torch.abs(batch)))
-        self.log_dict({
-            'val_loss': loss, 
+        out_dict = {
+            'val_loss': loss,
             'mape_val': mape
-        })
+        }
+        wandb.log(out_dict)
+        self.log_dict(out_dict)
         return loss
 
 

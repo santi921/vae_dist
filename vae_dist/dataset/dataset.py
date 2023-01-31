@@ -110,7 +110,7 @@ def dataset_split_loader(dataset, train_split, batch_size=10, num_workers=0, shu
     dataset_loader_full = torch.utils.data.DataLoader(
         dataset, 
         batch_size=batch_size,
-        shuffle=shuffle,
+        shuffle=False,
         num_workers=num_workers
     )
 
@@ -124,7 +124,7 @@ def dataset_split_loader(dataset, train_split, batch_size=10, num_workers=0, shu
     dataset_loader_test= torch.utils.data.DataLoader(
         test_dataset, 
         batch_size=batch_size,
-        shuffle=shuffle,
+        shuffle=False,
         num_workers=num_workers
     )
     

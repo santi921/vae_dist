@@ -1,10 +1,9 @@
-from escnn import nn, group                                        
-import torch                                                      
-import pytorch_lightning as pl
-
+import torch, wandb                                                      
 from torchsummary import summary
-from torch.nn import MSELoss, Sequential
 from torch.nn import functional as F
+
+import pytorch_lightning as pl
+from escnn import nn, group                                        
 
 from vae_dist.core.escnnlayers import R3Upsampling
 
@@ -20,7 +19,8 @@ class R3VAE(pl.LightningModule):
         kernel_size=5, 
         latent_dim=1, 
         beta = 1.0,
-        fully_connected_dims = [64]):
+        fully_connected_dims = [64],
+        log_wandb=False):
 
         super().__init__()
         self.learning_rate = learning_rate
@@ -36,7 +36,8 @@ class R3VAE(pl.LightningModule):
             'group': group,
             'gspace': gspace,
             'fully_connected_dims': fully_connected_dims,
-            'beta': beta
+            'beta': beta,
+            'log_wandb': log_wandb
         }
         self.hparams.update(params)
         #self.save_hyperparameters()
@@ -260,14 +261,15 @@ class R3VAE(pl.LightningModule):
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
         mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
         
-        self.log_dict({
+        out_dict = {
             'elbo_train': elbo,
             'kl_train': kl,
             'recon_loss_train': recon_loss,
             'train_loss': elbo,
             'mape_train': mape
-        })
-
+        }
+        if self.hparams.log_wandb:wandb.log(out_dict)
+        self.log_dict(out_dict)
         return elbo
 
 
@@ -284,13 +286,15 @@ class R3VAE(pl.LightningModule):
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
         mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
 
-        self.log_dict({
+        out_dict = {
             'elbo_test': elbo,
             'kl_test': kl,
             'recon_loss_test': recon_loss,
             'test_loss': elbo,
             'test_mape': mape
-        })
+        }
+        if self.hparams.log_wandb:wandb.log(out_dict)
+        self.log_dict(out_dict)
 
         return elbo
     
@@ -307,14 +311,16 @@ class R3VAE(pl.LightningModule):
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
         mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
-
-        self.log_dict({
+        out_dict = {
             'elbo_val': elbo,
             'kl_val': kl,
             'recon_loss_val': recon_loss,
             'val_loss': elbo,
             'mape_val': mape
-        })
+        }
+
+        if self.hparams.log_wandb:wandb.log(out_dict)
+        self.log_dict(out_dict)
 
         return elbo
 

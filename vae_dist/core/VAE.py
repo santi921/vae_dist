@@ -1,4 +1,4 @@
-import torch
+import torch, wandb
 import torch.nn as nn
 from torch.nn import functional as F
 
@@ -26,6 +26,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
         batch_norm,
         beta,
         learning_rate,
+        log_wandb=False,
         **kwargs
     ):
         super().__init__()
@@ -50,6 +51,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
             'beta': beta,
             'kwargs': kwargs,
             'learning_rate': learning_rate,
+            'log_wandb': log_wandb
         }
 
         self.hparams.update(params)
@@ -139,7 +141,6 @@ class baselineVAEAutoencoder(pl.LightningModule):
         return self.decoder(x)
 
 
-
     def training_step(self, batch, batch_idx):
         x = batch
         # encode x to get the mu and variance parameters
@@ -169,14 +170,16 @@ class baselineVAEAutoencoder(pl.LightningModule):
         elbo = (kl + self.hparams.beta * recon_loss)
         mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
 
-        self.log_dict({
+        out_dict = {
             'elbo_train': elbo,
             'kl_train': kl,
             'recon_loss_train': recon_loss,
             'train_loss': elbo,
             'mape_train': mape
-        })
+        }
 
+        if self.hparams.log_wandb:wandb.log(out_dict)
+        self.log_dict(out_dict)
         return elbo
 
 
@@ -205,13 +208,16 @@ class baselineVAEAutoencoder(pl.LightningModule):
         elbo = (kl + self.hparams.beta * recon_loss)
         mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
 
-        self.log_dict({
+        out_dict = {
             'elbo_test': elbo,
             'kl_test': kl,
             'recon_loss_test': recon_loss,
             'test_loss': elbo,
             'test_mape': mape
-        })
+        }
+        
+        if self.hparams.log_wandb:wandb.log(out_dict)
+        self.log_dict(out_dict)
 
         return elbo
 
@@ -241,13 +247,15 @@ class baselineVAEAutoencoder(pl.LightningModule):
         elbo = (kl + self.hparams.beta * recon_loss)
         mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
 
-        self.log_dict({
+        out_dict = {
             'elbo_val': elbo,
             'kl_val': kl,
             'recon_loss_val': recon_loss,
             'val_loss': elbo,
             'mape_val': mape
-        })
+        }
+        if self.hparams.log_wandb:wandb.log(out_dict)
+        self.log_dict(out_dict)
 
         return elbo
 

@@ -1,4 +1,4 @@
-import argparse, json
+import argparse, json, wandb
 from escnn import gspaces, nn                                         
 import torch                                                      
 import pytorch_lightning as pl
@@ -22,8 +22,12 @@ def main():
     epochs = args.epochs
     model_select = args.model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
 
+    if model_select == 'escnn' or model_select == 'auto':        
+        run = wandb.init(project="cnn_dist", reinit=True)
+    else:
+        run = wandb.init(project="vae_dist", reinit=True)
+    
     dataset_vanilla = FieldDataset(
         root, 
         transform=False, 
@@ -59,6 +63,8 @@ def main():
         print("Model not found")
         return
 
+    wandb.config.update(options)
+    
     # load model to gpu
     model.to(device)
     
@@ -82,13 +88,12 @@ def main():
     trainer.fit(
         model, 
         dataset_loader_train, 
-        dataset_loader_test, 
+        dataset_loader_test
         )
 
     model.eval()
-    # check if folder exists
-
     # save state dict
     torch.save(model.state_dict(), log_save_dir + "/model_1.ckpt")
+    run.finish()
 
 main()
