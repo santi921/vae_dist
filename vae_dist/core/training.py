@@ -34,17 +34,18 @@ def construct_model(model, options):
         model: pl.LightningModule, the model
     """
     if model == 'esvae':
-        g = group.so3_group()
+        g = group.o3_group()
         gspace = gspaces.flipRot3dOnR3(maximum_frequency=10) 
         input_out_reps = 3*[gspace.trivial_repr]
         kernel_size = 5
         feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
-        feat_type_out = nn.FieldType(gspace,  input_out_reps)    
+        feat_type_out = nn.FieldType(gspace,  input_out_reps) 
         model = R3VAE(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)
     
     elif model == 'escnn':
-        g = group.so3_group()
+        g = group.o3_group()
         gspace = gspaces.flipRot3dOnR3(maximum_frequency=10) 
+        #gspace = gspace.no_base_space(g)
         input_out_reps = 3*[gspace.trivial_repr]
         #kernel_size = 5
         feat_type_in  = nn.FieldType(gspace,  input_out_reps) 

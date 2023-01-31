@@ -13,11 +13,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='escnn')
     parser.add_argument('--data', type=str, default='../../data/cpet/')
+    parser.add_argument('--epochs', type=int, default=1000)
     #parser.add_argument('--gpu', type=int, default=0)
 
     args = parser.parse_args()
 
     root = args.data
+    epochs = args.epochs
     model_select = args.model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
@@ -26,8 +28,9 @@ def main():
         root, 
         transform=False, 
         augmentation=False,
-        standardize=True,
-        device=device
+        standardize=False,
+        device=device, 
+        log_scale=True
         )
 
     if model_select == 'escnn':
@@ -64,7 +67,7 @@ def main():
     lr_monitor = LearningRateMonitor(logging_interval='step')
     trainer = pl.Trainer(
         limit_train_batches=100, 
-        max_epochs=100, 
+        max_epochs=epochs, 
         accelerator='gpu', 
         devices = [0],
         accumulate_grad_batches=5, 

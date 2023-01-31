@@ -71,17 +71,61 @@ class R3VAE(pl.LightningModule):
         
         out_type = nn.FieldType(self.gspace, self.channels_outer*[self.gspace.trivial_repr])
         # we choose 24 feature fields, each transforming under the regular representation of C8        
-        self.encoder_conv_list.append(nn.R3Conv(in_type_og, out_type, kernel_size=kernel_size, padding=0, bias=False))
         self.encoder_conv_list.append(
-            nn.QuotientFourierELU(
-                gspace = self.gspace, 
-                channels=3, 
-                irreps=self.group.bl_sphere_representation(L=1).irreps,
-                grid = self.group.sphere_grid(type='thomson', N=16),
-                subgroup_id=(True,'so3'),
-                inplace=True
-                )
+            nn.R3Conv(in_type_og, out_type, kernel_size=kernel_size, padding=0, bias=False))
+        
+        # works
+        nn.ReLU(out_type, inplace=True)
+        nn.PointwiseNonLinearity(out_type, function='p_relu')
+        nn.QuotientFourierPointwise(
+            gspace = self.gspace,
+            channels = 8,
+            irreps=self.group.bl_sphere_representation(L=1).irreps,
+            grid = self.group.grid(type='thomson', N=8),
+            subgroup_id=(True, 'so3'),
+            function='p_relu',
+            inplace=True
+        )
+
+        # Not working 
+        #nn.FourierPointwise(self.gspace, 
+        #                    channels = 8,
+        #                    irreps = self.group.bl_sphere_representation(L=1).irreps,
+        #                    grid = self.group.grid(type='thomson', N=9),
+        #                    function='p_relu', 
+        #                    inplace=True)
+        #nn.FourierELU(self.gspace,
+        #            channels = 8,
+        #            irreps= self.group.bl_sphere_representation(L=1).irreps,
+        #            grid = self.group.grid(type='thomson', N=16),
+        #            subgroup_id=(True, 'so3'),
+        #            inplace=True
+        #              )
+        # not working
+        #nn.InducedNormNonLinearity(out_type, function='n_sigmoid', bias=True)        
+        #nn.GatedNonLinearityUniform(out_type)
+        
+
+
+        
+        self.encoder_conv_list.append(
+            nn.QuotientFourierPointwise(
+            gspace = self.gspace,
+            channels = 8,
+            irreps=self.group.bl_sphere_representation(L=1).irreps,
+            grid = self.group.grid(type='thomson', N=8),
+            subgroup_id=(True, 'so3'),
+            function='p_relu',
+            inplace=True
             )
+        )
+        #activations
+
+
+        self.encoder_conv_list.append(
+            nn.PointwiseDropout(out_type, p=0.1)
+        )
+
         #self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))
         self.encoder_conv_list.append(nn.PointwiseAvgPoolAntialiased3D(out_type, sigma=0.66, stride=3))
 
@@ -135,8 +179,8 @@ class R3VAE(pl.LightningModule):
         # reverse the list
         self.list_dec_fully.reverse()
             
-        self.dense_out_type = nn.FieldType(group,  self.channels_inner * [self.group.trivial_repr])
-        out_type = nn.FieldType(self.group, self.hparams.latent_dim * self.channels_outer*[self.group.trivial_repr])
+        self.dense_out_type = nn.FieldType(self.gspace,  self.channels_inner * [self.gspace.trivial_repr])
+        out_type = nn.FieldType(self.gspace, self.hparams.latent_dim * self.channels_outer*[self.gspace.trivial_repr])
         
         self.decoder_conv_list.append(nn.R3ConvTransposed(self.dense_out_type, out_type, kernel_size=kernel_size, padding=2, bias=False))
         self.decoder_conv_list.append(nn.ReLU(out_type, inplace=True))

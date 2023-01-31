@@ -16,7 +16,6 @@ class baselineVAEAutoencoder(pl.LightningModule):
         padding,
         dilation,
         groups,
-        gspace,
         bias,
         padding_mode,
         latent_dim,
@@ -100,7 +99,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
                     stride = self.hparams.stride,
                     padding = self.hparams.padding,
                     dilation = self.hparams.dilation,
-                    groups = self.hparams.gspace,
+                    groups = self.hparams.groups,
                     bias = self.hparams.bias,
                     padding_mode = self.hparams.padding_mode,
             )

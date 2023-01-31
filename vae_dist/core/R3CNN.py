@@ -74,7 +74,7 @@ class R3CNN(pl.LightningModule):
         self.gspace = gspace  
         self.feat_type_in  = feat_type_in
         self.feat_type_out = feat_type_out
-        self.feat_type_hidden = nn.FieldType(self.group, latent_dim*[self.group.trivial_repr])
+        self.feat_type_hidden = nn.FieldType(self.gspace, latent_dim*[self.gspace.trivial_repr])
         self.channels_inner = 48
         self.channels_outer = 24
         
@@ -86,16 +86,26 @@ class R3CNN(pl.LightningModule):
         
         out_type = nn.FieldType(self.gspace, self.channels_outer*[self.gspace.trivial_repr])
         # we choose 24 feature fields, each transforming under the regular representation of C8        
-        self.encoder_conv_list.append(nn.R3Conv(in_type_og, out_type, kernel_size=kernel_size, padding=0, bias=False))
-        self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))
-        self.encoder_conv_list.append(nn.PointwiseAvgPoolAntialiased3D(out_type, sigma=0.66, stride=3))
+        self.encoder_conv_list.append(
+            nn.R3Conv(in_type_og, out_type, kernel_size=kernel_size, padding=0, bias=False))
+        self.encoder_conv_list.append(
+            nn.ReLU(out_type, inplace=True))
+        self.encoder_conv_list.append(
+            nn.PointwiseAvgPoolAntialiased3D(out_type, sigma=0.66, stride=3))
 
         in_type = out_type
         out_type = nn.FieldType(self.gspace, self.channels_inner*[self.gspace.trivial_repr])
-        self.encoder_conv_list.append(nn.R3Conv(in_type, out_type, kernel_size=kernel_size, padding=0, bias=False))
-        self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))
-        self.encoder_conv_list.append(nn.PointwiseAvgPoolAntialiased3D(out_type, sigma=0.66, stride=3))
-        self.encoder_conv_list.append(nn.GroupPooling(out_type))
+        
+        self.encoder_conv_list.append(
+            nn.R3Conv(in_type, out_type, kernel_size=kernel_size, padding=0, bias=False))
+        self.encoder_conv_list.append(
+            nn.ReLU(out_type, inplace=True))
+        self.encoder_conv_list.append(
+            nn.PointwiseAvgPoolAntialiased3D(out_type, sigma=0.66, stride=3))
+        self.encoder_conv_list.append(
+            nn.GroupPooling(out_type))
+        
+
         self.encoder = nn.SequentialModule(*self.encoder_conv_list)
 
         # number of output channels
@@ -127,8 +137,8 @@ class R3CNN(pl.LightningModule):
         self.decoder_fully_net = torch.nn.Sequential(*self.list_dec_fully)
             
 
-        self.dense_out_type = nn.FieldType(group,  self.channels_inner * [self.group.trivial_repr])
-        out_type = nn.FieldType(self.group, self.channels_outer*[self.group.trivial_repr])
+        self.dense_out_type = nn.FieldType(self.gspace,  self.channels_inner * [self.gspace.trivial_repr])
+        out_type = nn.FieldType(self.gspace, self.channels_outer*[self.gspace.trivial_repr])
         
         
         #self.decoder_conv_list.append(R3Upsampling(out_type, scale_factor=2, mode='nearest', align_corners=False))
@@ -147,6 +157,7 @@ class R3CNN(pl.LightningModule):
         self.decoder = nn.SequentialModule(*self.decoder_conv_list)
         #self.model = nn.SequentialModule(self.encoder, self.encoder_fully_net, self.decoder_fully_net, self.decoder)
 
+
     def encode(self, x):
         x = self.feat_type_in(x)
         x = self.encoder(x)
@@ -164,9 +175,11 @@ class R3CNN(pl.LightningModule):
         x = x.tensor
         return x
 
+
     def latent(self, x): 
         x = self.encode(x)
         return x 
+
 
     def forward(self, x: torch.Tensor):
         x = self.encode(x)

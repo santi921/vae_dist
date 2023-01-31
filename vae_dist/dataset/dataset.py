@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 # create class for dataset
 class FieldDataset(torch.utils.data.Dataset):
-    def __init__(self, root, transform=None, augmentation=None, standardize=True, device='cpu'):
+    def __init__(self, root, transform=None, augmentation=None, standardize=True, log_scale=False, device='cpu'):
         fields, shape, names = pull_fields(root, ret_names=True)
         data = fields.reshape([len(fields), 3, shape[0], shape[1], shape[2]])
 
@@ -16,20 +16,26 @@ class FieldDataset(torch.utils.data.Dataset):
         #print(self.mags.shape)
         # find index of max magnitude
         max_mag_ind = np.unravel_index(self.mags.argmax(), self.mags.shape)
-        #print(max_mag_ind)
-        #print(names[max_mag_ind[0]])
         # compute minimum vector magnitude
         self.min_mag = self.mags.min()
         self.max_mag = self.mags.max()
         self.st_mag = self.mags.std()
         self.mean_mag = self.mags.mean()
-        #print(self.min_mag, self.max_mag, self.st_mag, self.mean_mag)
 
         if standardize:
             # standardize every field 
             data = (data - self.mean_mag) / (self.st_mag + 0.0001)
             #data = (data - self.min) / (self.max - self.min + 0.0001)
-        # print if any values are nan
+        
+        if log_scale:
+            x_sign = np.sign(data)
+            # getting absolute value of every element
+            x_abs = np.abs(data)
+            # applying log1p
+            x_log1p = np.log1p(x_abs)
+            # getting sign back
+            data = np.multiply(x_log1p, x_sign)
+        
         if np.isnan(data).any():
             print("Nan values in dataset")
             
