@@ -27,7 +27,7 @@ def write_mat(mat, filename, start_line='', spacing = 0.3):
 def main():         
     # input_dir 
     # output_dir
-    aug_obj = Augment(xy = False, z = False, rot = 2)
+    aug_obj = Augment(xy = True, z = True, rot = 2)
     input_dir = "../../data/cpet/"
     output_dir = "../../data/cpet_augmented/"
     

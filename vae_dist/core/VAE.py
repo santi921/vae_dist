@@ -169,13 +169,15 @@ class baselineVAEAutoencoder(pl.LightningModule):
         #print(kl.tolist(), recon_loss.tolist())
         elbo = (kl + self.hparams.beta * recon_loss)
         mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
+        medpe = torch.median(torch.abs((x_hat - batch) / torch.abs(batch)))
 
         out_dict = {
             'elbo_train': elbo,
             'kl_train': kl,
             'recon_loss_train': recon_loss,
             'train_loss': elbo,
-            'mape_train': mape
+            'mape_train': mape,
+            'medpe_train': medpe,
         }
 
         if self.hparams.log_wandb:wandb.log(out_dict)
@@ -207,13 +209,15 @@ class baselineVAEAutoencoder(pl.LightningModule):
         # elbo
         elbo = (kl + self.hparams.beta * recon_loss)
         mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
+        medpe = torch.median(torch.abs((x_hat - batch) / torch.abs(batch)))
 
         out_dict = {
             'elbo_test': elbo,
             'kl_test': kl,
             'recon_loss_test': recon_loss,
             'test_loss': elbo,
-            'test_mape': mape
+            'test_mape': mape,
+            'test_medpe': medpe
         }
         
         if self.hparams.log_wandb:wandb.log(out_dict)
@@ -246,13 +250,15 @@ class baselineVAEAutoencoder(pl.LightningModule):
         # elbo
         elbo = (kl + self.hparams.beta * recon_loss)
         mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
+        medpe = torch.median(torch.abs((x_hat - batch) / torch.abs(batch)))
 
         out_dict = {
             'elbo_val': elbo,
             'kl_val': kl,
             'recon_loss_val': recon_loss,
             'val_loss': elbo,
-            'mape_val': mape
+            'mape_val': mape,
+            'medpe_val': medpe
         }
         if self.hparams.log_wandb:wandb.log(out_dict)
         self.log_dict(out_dict)

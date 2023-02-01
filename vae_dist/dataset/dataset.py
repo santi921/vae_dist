@@ -91,15 +91,15 @@ class FieldDataset(torch.utils.data.Dataset):
 
 
     def dataset_to_tensor(self):
-        self.data = torch.tensor(self.data).to(self.device)
-        
+        data_tensor = torch.tensor(self.data).to(self.device)
+        return data_tensor
 
     def dataset_to_numpy(self): 
-        self.data = self.data.numpy()
-        
+        data_np = self.data.numpy()
+        return data_np
 
 
-def dataset_split_loader(dataset, train_split, batch_size=10, num_workers=0, shuffle=True):
+def dataset_split_loader(dataset, train_split, batch_size=1, num_workers=0, shuffle=True):
 
     # train test split - randomly split dataset into train and test
     train_size = int(train_split * len(dataset))

@@ -28,6 +28,7 @@ def main():
     else:
         run = wandb.init(project="vae_dist", reinit=True)
     
+
     dataset_vanilla = FieldDataset(
         root, 
         transform=False, 
@@ -62,21 +63,30 @@ def main():
         # throw error
         print("Model not found")
         return
-
+    wandb.config.update({
+        "model": model_select,
+        "epochs": epochs,
+        "data": root
+    })
     wandb.config.update(options)
     
     # load model to gpu
     model.to(device)
-    
+    # check if there are any inf or nan values in the model
+    is_nan = torch.stack([torch.isnan(p).any() for p in model.parameters()]).any()
+    print("Model has inf or nan values: ", is_nan)
+    # check if dataset has any inf or nan values
+    print("Dataset has inf or nan values: ", torch.isnan(dataset_vanilla.dataset_to_tensor()).any())
     dataset_loader_full, dataset_loader_train, dataset_loader_test= dataset_split_loader(dataset_vanilla, train_split=0.8)
 
     lr_monitor = LearningRateMonitor(logging_interval='step')
     trainer = pl.Trainer(
-        limit_train_batches=100, 
+        auto_scale_batch_size="binsearch", 
         max_epochs=epochs, 
         accelerator='gpu', 
         devices = [0],
         accumulate_grad_batches=5, 
+        enable_progress_bar=True,
         callbacks=[
             pl.callbacks.EarlyStopping(monitor='val_loss', patience=50, verbose = False),
             lr_monitor],

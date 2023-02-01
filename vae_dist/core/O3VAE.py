@@ -260,14 +260,15 @@ class R3VAE(pl.LightningModule):
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
         mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
-        
+        medpe = torch.median(torch.abs((x_hat - batch) / torch.abs(batch)))
         out_dict = {
             'elbo_train': elbo,
             'kl_train': kl,
             'recon_loss_train': recon_loss,
             'train_loss': elbo,
-            'mape_train': mape
-        }
+            'mape_train': mape, 
+            "training_median_percent_error": medpe
+            }     
         if self.hparams.log_wandb:wandb.log(out_dict)
         self.log_dict(out_dict)
         return elbo
@@ -285,14 +286,15 @@ class R3VAE(pl.LightningModule):
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
         mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
-
+        medpe = torch.median(torch.abs((x_hat - batch) / torch.abs(batch)))
         out_dict = {
             'elbo_test': elbo,
             'kl_test': kl,
             'recon_loss_test': recon_loss,
             'test_loss': elbo,
-            'test_mape': mape
-        }
+            'test_mape': mape,
+            "training_median_percent_error": medpe
+            }     
         if self.hparams.log_wandb:wandb.log(out_dict)
         self.log_dict(out_dict)
 
@@ -311,13 +313,15 @@ class R3VAE(pl.LightningModule):
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
         mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
+        medpe = torch.median(torch.abs((x_hat - batch) / torch.abs(batch)))
         out_dict = {
             'elbo_val': elbo,
             'kl_val': kl,
             'recon_loss_val': recon_loss,
             'val_loss': elbo,
-            'mape_val': mape
-        }
+            'mape_val': mape,
+            "training_median_percent_error": medpe
+            }     
 
         if self.hparams.log_wandb:wandb.log(out_dict)
         self.log_dict(out_dict)

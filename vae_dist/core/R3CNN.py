@@ -195,9 +195,11 @@ class R3CNN(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         mape = torch.mean(torch.abs((predict - batch) / torch.abs(batch)))
+        medpe = torch.median(torch.abs((predict - batch) / torch.abs(batch))).item()
         out_dict = {
             "training_loss": loss,
-            "training_mape": mape
+            "training_mape": mape,
+            "training_median_percent_error": medpe
             }     
         if self.hparams.log_wandb:wandb.log(out_dict)
         self.log_dict(out_dict)
@@ -209,10 +211,11 @@ class R3CNN(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         mape = torch.mean(torch.abs((predict - batch) / torch.abs(batch)))
-     
+        medpe = torch.median(torch.abs((predict - batch) / torch.abs(batch))).item()
         out_dict = {
             "test_loss": loss,
-            "test_mape": mape
+            "test_mape": mape,
+            "test_median_percent_error": medpe,
         }
         if self.hparams.log_wandb:wandb.log(out_dict)
         self.log_dict(out_dict)
@@ -224,10 +227,11 @@ class R3CNN(pl.LightningModule):
         loss = self.loss_function(batch, predict)
         #self.log("val_loss", loss, on_epoch=True, prog_bar=True, logger=True)
         mape = torch.mean(torch.abs((predict - batch) / torch.abs(batch)))
-        
+        medpe = torch.median(torch.abs((predict - batch) / torch.abs(batch))).item()
         out_dict = {
             "val_loss": loss,
-            "val_mape": mape
+            "val_mape": mape, 
+            'val_median_percent_error': medpe,
         }
         if self.hparams.log_wandb:wandb.log(out_dict)
         self.log_dict(out_dict)
