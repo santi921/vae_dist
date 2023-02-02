@@ -7,6 +7,7 @@ from vae_dist.dataset.dataset import FieldDataset, dataset_split_loader
 from vae_dist.core.training import construct_model
 
 def main():              
+
     # create argparser that just takes a string for model type 
     # and a string for the path to the data
 
@@ -77,7 +78,7 @@ def main():
     print("Model has inf or nan values: ", is_nan)
     # check if dataset has any inf or nan values
     print("Dataset has inf or nan values: ", torch.isnan(dataset_vanilla.dataset_to_tensor()).any())
-    dataset_loader_full, dataset_loader_train, dataset_loader_test= dataset_split_loader(dataset_vanilla, train_split=0.8)
+    dataset_loader_full, dataset_loader_train, dataset_loader_test= dataset_split_loader(dataset_vanilla, train_split=0.8, num_workers=0)
 
     lr_monitor = LearningRateMonitor(logging_interval='step')
     trainer = pl.Trainer(
