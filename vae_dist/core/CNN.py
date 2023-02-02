@@ -76,19 +76,18 @@ class CNNAutoencoderLightning(pl.LightningModule):
     
         print("inner_dim: ", inner_dim)
 
+
         for ind, h in enumerate(self.hparams.fully_connected_layers):
             # if it's the last item in the list, then we want to output the latent dim
-            if ind == len(self.hparams.fully_connected_layers)-1:
-                h_out = latent_dim
-            else: 
-                h_out = self.hparams.fully_connected_layers[ind+1]
-
+                
             if ind == 0:
                 self.list_dec_fully.append(torch.nn.Unflatten(1, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim)))        
                 self.list_enc_fully.append(torch.nn.Flatten())
                 h_in = self.hparams.channels[-1] * inner_dim * inner_dim * inner_dim
+                h_out = h
             else:
-                h_in = h
+                h_in = self.hparams.fully_connected_layers[ind-1]
+                h_out = h
 
             self.list_enc_fully.append(torch.nn.Linear(h_in , h_out))
             self.list_enc_fully.append(torch.nn.ReLU())
@@ -97,9 +96,18 @@ class CNNAutoencoderLightning(pl.LightningModule):
                 self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
                 self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
 
-            self.list_dec_fully.append(torch.nn.Sigmoid())
+            if ind == len(self.hparams.fully_connected_layers)-1:
+                self.list_dec_fully.append(torch.nn.Sigmoid())
+            else: 
+                self.list_dec_fully.append(torch.nn.ReLU())
+            
             self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
 
+        self.list_enc_fully.append(torch.nn.Linear(self.hparams.fully_connected_layers[-1] , self.hparams.latent_dim))
+        self.list_enc_fully.append(torch.nn.ReLU())
+        self.list_dec_fully.append(torch.nn.Linear(self.hparams.latent_dim, self.hparams.fully_connected_layers[-1]))
+
+        
         for ind in range(len(self.hparams.channels)-1):
             channel_in = self.hparams.channels[ind]
             channel_out = self.hparams.channels[ind+1]

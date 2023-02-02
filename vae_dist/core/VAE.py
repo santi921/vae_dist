@@ -4,13 +4,13 @@ from torch.nn import functional as F
 
 import pytorch_lightning as pl
 from vae_dist.core.layers import UpConvBatch, ConvBatch, ResNetBatch
+from torchsummary import summary
 
 class baselineVAEAutoencoder(pl.LightningModule):
     def __init__(
         self,
         irreps, 
-        in_channels,
-        out_channels,
+        channels,
         kernel_size,
         stride,
         padding,
@@ -19,22 +19,25 @@ class baselineVAEAutoencoder(pl.LightningModule):
         bias,
         padding_mode,
         latent_dim,
-        num_layers,
-        hidden_dim,
+        fully_connected_layers,
         activation,
         dropout,
         batch_norm,
-        beta,
         learning_rate,
+        beta = 1.0,
+        max_pool=False, 
+        max_pool_kernel_size=2,
+        max_pool_loc=[3],
         log_wandb=False,
+        im_dim=21,
         **kwargs
     ):
+
         super().__init__()
         self.learning_rate = learning_rate
         params = {
             'irreps': irreps,
-            'in_channels': in_channels,
-            'out_channels': out_channels,
+            'channels': channels,
             'kernel_size': kernel_size,
             'stride': stride,
             'padding': padding,
@@ -43,74 +46,156 @@ class baselineVAEAutoencoder(pl.LightningModule):
             'bias': bias,
             'padding_mode': padding_mode,
             'latent_dim': latent_dim,
-            'num_layers': num_layers,
-            'hidden_dim': hidden_dim,
             'activation': activation,
             'dropout': dropout,
             'batch_norm': batch_norm,
             'beta': beta,
             'kwargs': kwargs,
             'learning_rate': learning_rate,
-            'log_wandb': log_wandb
+            'log_wandb': log_wandb,
+            'im_dim': im_dim,
+            'max_pool': max_pool,
+            'fully_connected_layers': fully_connected_layers,
+            'max_pool_kernel_size': max_pool_kernel_size,
+            'max_pool_loc': max_pool_loc
         }
+        assert len(channels) == len(stride) + 1, "channels and stride must be the same length"
+        assert len(stride) == len(kernel_size), "stride and kernel_size must be the same length"
 
         self.hparams.update(params)
         self.save_hyperparameters()
 
-        self.fc_mu = nn.Linear(self.hparams.hidden_dim, self.hparams.latent_dim)
-        self.fc_var = nn.Linear(self.hparams.hidden_dim, self.hparams.latent_dim)
-        # initialize the log scale to 0
-        
-        nn.init.zeros_(self.fc_var.bias)
-        #nn.init.ones_(self.fc_mu.bias)
 
         modules_enc, modules_dec = [], []
-        modules_enc.append(
-            ConvBatch(
-                    in_channels = self.hparams.in_channels,
-                    out_channels = self.hparams.out_channels,
-                    kernel_size = self.hparams.kernel_size,
-                    stride = self.hparams.stride,
-                    padding = self.hparams.padding,
-                    dilation = self.hparams.dilation,
-                    groups = self.hparams.groups,
-                    bias = self.hparams.bias,
-                    padding_mode = self.hparams.padding_mode,
-            )
-        )
-        modules_enc.append(nn.Flatten())
-        modules_enc.append(
-            nn.Linear(
-                in_features = self.hparams.out_channels * 17 * 17 * 17,
-                out_features = self.hparams.hidden_dim,
-            ))
-        modules_enc.append(nn.ReLU())
+        self.list_enc_fully = []
+        self.list_dec_fully = []
+        self.list_enc_conv = []
+        self.list_dec_conv = []
+        trigger = 0
+        inner_dim = im_dim
+        for i in range(len(self.hparams.channels)-1):
+            inner_dim = int((inner_dim - (self.hparams.kernel_size[i] - 1)) / self.hparams.stride[i])
+            if self.hparams.max_pool:
+                if i in self.hparams.max_pool_loc:    
+                    inner_dim = int(1 + (inner_dim - self.hparams.max_pool_kernel_size + 1 ) / self.hparams.max_pool_kernel_size )
+    
+        print("inner_dim: ", inner_dim)
 
-        modules_dec.append(
-            nn.Linear(
-                in_features = self.hparams.latent_dim,
-                out_features = self.hparams.out_channels * 17 * 17 * 17
-            ))
-        modules_dec.append(nn.ReLU()),
-        modules_dec.append(nn.Unflatten(1, (self.hparams.out_channels, 17, 17, 17)))
-        modules_dec.append(
-            UpConvBatch(
-                    in_channels = self.hparams.out_channels,
-                    out_channels = self.hparams.in_channels,
-                    kernel_size = self.hparams.kernel_size,
-                    stride = self.hparams.stride,
-                    padding = self.hparams.padding,
-                    dilation = self.hparams.dilation,
-                    groups = self.hparams.groups,
-                    bias = self.hparams.bias,
-                    padding_mode = self.hparams.padding_mode,
+        for ind, h in enumerate(self.hparams.fully_connected_layers):
+            # if it's the last item in the list, then we want to output the latent dim
+                
+            if ind == 0:
+                self.list_dec_fully.append(torch.nn.Unflatten(1, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim)))        
+                self.list_enc_fully.append(torch.nn.Flatten())
+                h_in = self.hparams.channels[-1] * inner_dim * inner_dim * inner_dim
+                h_out = h
+            else:
+                h_in = self.hparams.fully_connected_layers[ind-1]
+                h_out = h
+
+            self.list_enc_fully.append(torch.nn.Linear(h_in , h_out))
+            self.list_enc_fully.append(torch.nn.ReLU())
+            
+            if self.hparams.dropout > 0:
+                self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
+                self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
+
+            if ind == len(self.hparams.fully_connected_layers)-1:
+                self.list_dec_fully.append(torch.nn.Sigmoid())
+            else: 
+                self.list_dec_fully.append(torch.nn.ReLU())
+            
+            self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
+
+
+        self.fc_mu = nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim)
+        self.fc_var = nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim)
+        h_out = self.hparams.latent_dim
+        nn.init.zeros_(self.fc_var.bias)
+        self.list_dec_fully.append(torch.nn.Linear(self.hparams.latent_dim, self.hparams.fully_connected_layers[-1]))
+
+
+        for ind in range(len(self.hparams.channels)-1):
+            channel_in = self.hparams.channels[ind]
+            channel_out = self.hparams.channels[ind+1]
+            kernel = self.hparams.kernel_size[ind]
+            stride = self.hparams.stride[ind]
+
+            self.list_enc_conv.append(
+                ConvBatch(
+                        in_channels = channel_in,
+                        out_channels = channel_out,
+                        kernel_size = kernel,
+                        stride = stride,
+                        padding = self.hparams.padding,
+                        dilation = self.hparams.dilation,
+                        groups = self.hparams.groups,
+                        bias = self.hparams.bias,
+                        padding_mode = self.hparams.padding_mode,
+                )
             )
-        )
-        modules_dec.append(nn.LeakyReLU())
-        modules_dec.append(nn.Sigmoid())
+            
+            output_padding = 0
+            if inner_dim%2 == 1 and ind == len(self.hparams.channels)-1:
+                output_padding = 1
+
+            if dropout > 0: 
+                self.list_enc_conv.append(torch.nn.Dropout(dropout))
+
+
+            if trigger:
+                self.list_dec_conv.append(torch.nn.Upsample(
+                    scale_factor = self.hparams.max_pool_kernel_size))
+                trigger = 0
+
+            if (self.hparams.max_pool and ind in self.hparams.max_pool_loc):
+                self.list_enc_conv.append(torch.nn.MaxPool3d(
+                    self.hparams.max_pool_kernel_size))
+                trigger = 1    
+
+            if dropout > 0:
+                self.list_dec_conv.append(torch.nn.Dropout(dropout))
+            
+            self.list_dec_conv.append(
+                UpConvBatch(
+                        in_channels = channel_out,
+                        out_channels = channel_in,
+                        kernel_size = kernel,
+                        stride = stride,
+                        padding = self.hparams.padding,
+                        dilation = self.hparams.dilation,
+                        groups = self.hparams.groups,
+                        bias = self.hparams.bias,
+                        padding_mode = self.hparams.padding_mode,
+                        output_padding=output_padding
+                )
+            )
+
+
+        # reverse the list
+        self.list_dec_fully.reverse()
+        self.list_dec_conv.reverse()
+        [modules_enc.append(i) for i in self.list_enc_conv]
+        [modules_enc.append(i) for i in self.list_enc_fully]
+        [modules_dec.append(i) for i in self.list_dec_fully]
+        [modules_dec.append(i) for i in self.list_dec_conv]
+        # for debugging have the conv layers be sequential
+
+        self.encoder_conv = nn.Sequential(*self.list_enc_conv)
+        self.decoder_conv = nn.Sequential(*self.list_dec_conv)
+        self.decoder_dense = nn.Sequential(*self.list_dec_fully)
         self.encoder = nn.Sequential(*modules_enc)
         self.decoder = nn.Sequential(*modules_dec)
         self.model = nn.Sequential(self.encoder, self.decoder)
+
+        #self.decoder.to(self.device)
+        #self.encoder.to(self.device)
+        summary(self.encoder_conv, (3, 21, 21, 21), device="cpu")
+        summary(self.encoder, (3, 21, 21, 21), device="cpu")
+        summary(self.decoder_dense, tuple([latent_dim]), device="cpu")
+        summary(self.decoder_conv, (channels[-1], inner_dim, inner_dim, inner_dim), device="cpu")
+
+
 
     def forward(self, x  : torch.Tensor) -> torch.Tensor:
         mu, var = self.encode(x)
