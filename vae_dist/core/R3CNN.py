@@ -13,12 +13,21 @@ class R3CNN(pl.LightningModule):
         learning_rate, 
         group, 
         gspace,
+        channels,
         feat_type_in, 
         feat_type_out,
+        dropout,
+        batch_norm,
         kernel_size=5, 
         latent_dim=1, 
-        fully_connected_dims = [64],
-        log_wandb=False):
+        max_pool=False, 
+        max_pool_kernel_size=2,
+        max_pool_loc=[3],
+        fully_connected_layers=[64, 64, 64],
+        log_wandb=False,
+        im_dim=21,
+        **kwargs
+        ):
         """        
         stride,
         padding,
@@ -43,8 +52,14 @@ class R3CNN(pl.LightningModule):
             'latent_dim': latent_dim,
             'group': group,
             'gspace': gspace,
-            'fully_connected_dims': fully_connected_dims,
-            'log_wandb': log_wandb
+            'log_wandb': log_wandb,
+            'im_dim': im_dim,
+            'dropout': dropout,
+            'batch_norm': batch_norm,
+            'max_pool': max_pool,
+            'max_pool_kernel_size': max_pool_kernel_size,
+            'max_pool_loc': max_pool_loc,
+            'fully_connected_layers': fully_connected_layers
         }
         """'padding': padding,
         'dilation': dilation,
@@ -110,29 +125,38 @@ class R3CNN(pl.LightningModule):
 
         # number of output channels
         c = self.channels_inner
-        self.im_dim = 1
+        self.inner_dim = 1
 
-        for ind, h in enumerate(fully_connected_dims):
+        for ind, h in enumerate(self.hparams.fully_connected_layers):
             # if it's the last item in the list, then we want to output the latent dim
-            if ind == len(fully_connected_dims)-1:
-                h_out = latent_dim
-            else: 
-                h_out = fully_connected_dims[ind+1]
-
+                
             if ind == 0:
-                h_in = c*self.im_dim*self.im_dim*self.im_dim
+                self.list_dec_fully.append(torch.nn.Unflatten(1, (self.channels_inner, self.inner_dim, self.inner_dim, self.inner_dim)))        
+                self.list_enc_fully.append(torch.nn.Flatten())
+                h_in = self.channels_inner * self.inner_dim * self.inner_dim * self.inner_dim
+                h_out = h
             else:
-                h_in = h
-            
-            self.list_enc_fully.append(torch.nn.Linear(h_in, h_out))
-            self.list_enc_fully.append(torch.nn.Sigmoid())
-            self.list_dec_fully.append(torch.nn.Sigmoid())
-            self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
-            print(h_in, h_out)
+                h_in = self.hparams.fully_connected_layers[ind-1]
+                h_out = h
 
+            self.list_enc_fully.append(torch.nn.Linear(h_in , h_out))
+            self.list_enc_fully.append(torch.nn.ReLU())
+            
+            if self.hparams.dropout > 0:
+                self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
+                self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
+
+            if ind == len(self.hparams.fully_connected_layers)-1:
+                self.list_dec_fully.append(torch.nn.Sigmoid())
+            else: 
+                self.list_dec_fully.append(torch.nn.ReLU())
+            
+            self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
+
+        
+        
         # reverse the list
         self.list_dec_fully.reverse()
-            
         self.encoder_fully_net = torch.nn.Sequential(*self.list_enc_fully)
         self.decoder_fully_net = torch.nn.Sequential(*self.list_dec_fully)
             
@@ -169,7 +193,7 @@ class R3CNN(pl.LightningModule):
 
     def decode(self, x):
         x = self.decoder_fully_net(x)
-        x = x.reshape(x.shape[0], self.channels_inner, self.im_dim, self.im_dim, self.im_dim)
+        x = x.reshape(x.shape[0], self.channels_inner, self.inner_dim, self.inner_dim, self.inner_dim)
         x = self.dense_out_type(x)
         x = self.decoder(x)
         x = x.tensor

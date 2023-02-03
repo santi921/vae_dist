@@ -34,7 +34,7 @@ def main():
         root, 
         transform=False, 
         augmentation=False,
-        standardize=False,
+        standardize=True,
         device=device, 
         log_scale=True
         )

@@ -2,11 +2,14 @@
     "kernel_size": 5,
     "latent_dim": 10,
     "learning_rate": 0.0001,
-    "beta": 0.0001,
-    "fully_connected_dims": [
-        100,
-        100,
-        50
-    ],
-    "log_wandb": true
+    "fully_connected_layers": [100, 10],
+    "channels": [3, 48, 24],
+    "log_wandb": true,
+    "im_dim": 21,
+    "max_pool": true, 
+    "max_pool_kernel_size": 2, 
+    "max_pool_loc": [2],
+    "dropout": 0.1,
+    "batch_size": 32,
+    "beta": 1.0
 }

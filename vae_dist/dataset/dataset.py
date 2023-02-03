@@ -22,11 +22,6 @@ class FieldDataset(torch.utils.data.Dataset):
         self.st_mag = self.mags.std()
         self.mean_mag = self.mags.mean()
 
-        if standardize:
-            # standardize every field 
-            data = (data - self.mean_mag) / (self.st_mag + 0.0001)
-            #data = (data - self.min) / (self.max - self.min + 0.0001)
-        
         if log_scale:
             x_sign = np.sign(data)
             # getting absolute value of every element
@@ -36,6 +31,12 @@ class FieldDataset(torch.utils.data.Dataset):
             # getting sign back
             data = np.multiply(x_log1p, x_sign)
         
+        if standardize:
+            # standardize every field 
+            data = (data - self.mean_mag) / (self.st_mag + 0.0001)
+            #data = (data - self.min) / (self.max - self.min + 0.0001)
+        
+
         if np.isnan(data).any():
             print("Nan values in dataset")
             

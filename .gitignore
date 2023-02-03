@@ -8,4 +8,5 @@ lightning_logs/*
 *yaml
 *pop-os
 *log
+*zip
 *wandb

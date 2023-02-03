@@ -2,8 +2,8 @@ import numpy as np
 import plotly.graph_objects as go
 import networkx as nx
 from vae_dist.data.rdkit import xyz2AC_vdW, pdb_to_xyz, get_AC
-from vae_dist.dataset.fields import split_and_filter, pull_fields, pca 
-
+from vae_dist.dataset.fields import split_and_filter, pull_fields 
+from plotly.offline import iplot
 
 atom_int_dict = {
     'H': 1,
@@ -247,4 +247,52 @@ def get_cones_viz_from_pca(vector_scale = 3, components = 10, dir_fields = "../.
     return cones 
         
 
-#trace_edges, trace_nodes = plot_nodes_edge()
+def get_latent_space(model, dataset, comp=[0, 2], latent_dim=10):
+    latent_space = []
+    # convert load to numpy 
+    dataset_loader_np = []
+    print("Total number of fields: ", len(dataset))
+    for ind in range(len(dataset)):
+        field=dataset[ind].reshape(1, 3, 21, 21, 21)
+        latent = model.latent(field)
+        #print(latent.shape)
+        latent_space.append(latent.detach().cpu().numpy())
+    return np.array(latent_space).reshape(-1, latent_dim)[:, comp]
+
+
+def plot_vfield(mat, cutoff_low = 95, cutoff_high = 99.999, min_max = True, scale = 10):
+        x = mat #dataset_test.data[0] 
+        x = x.reshape(21, 21, 21, 3)
+        u_1, v_1, w_1 = split_and_filter(x, min_max = min_max, cutoff_low = cutoff_low, cutoff_high = cutoff_high)  
+        a, b, c = np.meshgrid(
+                np.arange(-3, 3.3, 0.3),
+                np.arange(-3, 3.3, 0.3),
+                np.arange(-3, 3.3, 0.3)
+                )
+
+        #max value of each dimension
+        max_u = np.max(u_1)
+        max_v = np.max(v_1)
+        max_w = np.max(w_1)
+        print(max_u, max_v, max_w)
+        
+        cones = go.Cone(
+                x=a.flatten(), 
+                y=b.flatten(), 
+                z=c.flatten(), 
+                u=u_1 ,
+                v=v_1 , 
+                w=w_1 ,
+                sizeref=scale,)
+                #opacity=0.0) 
+                
+        layout = go.Layout(
+                title='Cones',
+                width=700,
+                height=700,
+                        #sizeref=0.5,
+                        #anchor='tail'
+                )
+
+        fig = go.Figure(data=cones,layout=layout)
+        iplot(fig)

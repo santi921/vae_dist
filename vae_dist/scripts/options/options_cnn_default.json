@@ -11,7 +11,6 @@
     "latent_dim": 2,
     "activation": "relu",
     "fully_connected_layers": [100, 10],
-    "dropout": 0.1,
     "batch_norm": false,
     "learning_rate": 0.0001,
     "log_wandb": true,
@@ -19,5 +18,5 @@
     "max_pool": true, 
     "max_pool_kernel_size": 2, 
     "max_pool_loc": [2],
-    "drop_out_rate": 0.1
+    "dropout": 0.1,
 }

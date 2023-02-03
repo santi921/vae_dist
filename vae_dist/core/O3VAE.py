@@ -12,15 +12,23 @@ class R3VAE(pl.LightningModule):
     def __init__(
         self, 
         learning_rate, 
+        channels,
         gspace,  
         group,
         feat_type_in, 
         feat_type_out, 
+        dropout,
         kernel_size=5, 
         latent_dim=1, 
         beta = 1.0,
-        fully_connected_dims = [64],
-        log_wandb=False):
+        max_pool=False, 
+        max_pool_kernel_size=2,
+        max_pool_loc=[3],
+        fully_connected_layers=[64, 64, 64],
+        log_wandb=False,
+        im_dim=21,
+        **kwargs
+        ):
 
         super().__init__()
         self.learning_rate = learning_rate
@@ -29,15 +37,21 @@ class R3VAE(pl.LightningModule):
             'in_type': feat_type_in,
             'out_type': feat_type_out,
             'kernel_size': kernel_size,
+            'channels': channels,
             'padding': 0,
             'bias': False,
             'learning_rate': learning_rate,
             'latent_dim': latent_dim,
             'group': group,
             'gspace': gspace,
-            'fully_connected_dims': fully_connected_dims,
+            'fully_connected_layers': fully_connected_layers,
+            'dropout': dropout,
+            'max_pool': max_pool,
+            'max_pool_kernel_size': max_pool_kernel_size,
+            'max_pool_loc': max_pool_loc,
             'beta': beta,
-            'log_wandb': log_wandb
+            'log_wandb': log_wandb,
+            'im_dim': im_dim,
         }
         self.hparams.update(params)
         #self.save_hyperparameters()
@@ -60,12 +74,6 @@ class R3VAE(pl.LightningModule):
         self.channels_inner = 48
         self.channels_outer = 24
         
-        # convolution 1
-        self.fc_mu = torch.nn.Linear(self.hparams.latent_dim, self.hparams.latent_dim)
-        self.fc_var = torch.nn.Linear(self.hparams.latent_dim, self.hparams.latent_dim)
-        # initialize the log scale to 0
-        
-        torch.nn.init.zeros_(self.fc_var.bias)
 
         ######################### Encoder ########################################
         in_type_og  = feat_type_in        
@@ -105,8 +113,6 @@ class R3VAE(pl.LightningModule):
         # not working
         #nn.InducedNormNonLinearity(out_type, function='n_sigmoid', bias=True)        
         #nn.GatedNonLinearityUniform(out_type)
-        
-
 
         
         self.encoder_conv_list.append(
@@ -152,34 +158,45 @@ class R3VAE(pl.LightningModule):
         # number of output channels
         
         self.im_dim = 1
+        inner_dim = 1
+        print("inner_dim: ", inner_dim)
 
-        for ind, h in enumerate(fully_connected_dims):
+        for ind, h in enumerate(self.hparams.fully_connected_layers):
             # if it's the last item in the list, then we want to output the latent dim
-            if ind == len(fully_connected_dims)-1:
-                h_out = latent_dim
-
-            else: 
-                h_out = fully_connected_dims[ind+1]
-
+                
             if ind == 0:
-                self.list_dec_fully.append(torch.nn.Unflatten(1, (self.channels_inner, self.im_dim, self.im_dim, self.im_dim)))        
+                self.list_dec_fully.append(torch.nn.Unflatten(1, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim)))        
                 self.list_enc_fully.append(torch.nn.Flatten())
-                h_in = self.channels_inner*self.im_dim*self.im_dim*self.im_dim
+                h_in = self.hparams.channels[-1] * inner_dim * inner_dim * inner_dim
+                h_out = h
             else:
-                h_in = h
+                h_in = self.hparams.fully_connected_layers[ind-1]
+                h_out = h
 
-           
             self.list_enc_fully.append(torch.nn.Linear(h_in , h_out))
             self.list_enc_fully.append(torch.nn.ReLU())
             
+            if self.hparams.dropout > 0:
+                self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
+                self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
+
+            if ind == len(self.hparams.fully_connected_layers)-1:
+                self.list_dec_fully.append(torch.nn.Sigmoid())
+            else: 
+                self.list_dec_fully.append(torch.nn.ReLU())
             
-            self.list_dec_fully.append(torch.nn.Sigmoid())
             self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
 
+
+        self.fc_mu = nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim)
+        self.fc_var = nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim)
+        h_out = self.hparams.latent_dim
+        nn.init.zeros_(self.fc_var.bias)
+        self.list_dec_fully.append(torch.nn.Linear(self.hparams.latent_dim, self.hparams.fully_connected_layers[-1]))
+
+
             
-        # reverse the list
-        self.list_dec_fully.reverse()
-            
+
         self.dense_out_type = nn.FieldType(self.gspace,  self.channels_inner * [self.gspace.trivial_repr])
         out_type = nn.FieldType(self.gspace, self.hparams.latent_dim * self.channels_outer*[self.gspace.trivial_repr])
         
@@ -199,6 +216,8 @@ class R3VAE(pl.LightningModule):
         self.decoder_fully_net = torch.nn.Sequential(*self.list_dec_fully)
         self.decoder = nn.SequentialModule(*self.decoder_conv_list)
         self.encoder = nn.SequentialModule(*self.encoder_conv_list)
+        
+        
         # summary on encoder    
         #print(self.encoder)
         #print(self.encoder_fully_net)
