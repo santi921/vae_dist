@@ -24,6 +24,7 @@ class R3VAE(pl.LightningModule):
         max_pool=False, 
         max_pool_kernel_size=2,
         max_pool_loc=[3],
+        stride=[1],
         fully_connected_layers=[64, 64, 64],
         log_wandb=False,
         im_dim=21,
@@ -40,6 +41,7 @@ class R3VAE(pl.LightningModule):
             'channels': channels,
             'padding': 0,
             'bias': False,
+            'stride': stride, 
             'learning_rate': learning_rate,
             'latent_dim': latent_dim,
             'group': group,
@@ -56,11 +58,6 @@ class R3VAE(pl.LightningModule):
         self.hparams.update(params)
         #self.save_hyperparameters()
 
-        ############
-        # NOTE THAT RELU ISNT EQUIVARIANT
-        # NOTE THAT RELU ISNT EQUIVARIANT
-        # NOTE THAT RELU ISNT EQUIVARIANT
-        ########
         self.list_dec_fully = []
         self.list_enc_fully  = []
         self.decoder_conv_list = [] 
@@ -71,99 +68,85 @@ class R3VAE(pl.LightningModule):
         self.feat_type_in  = feat_type_in
         self.feat_type_out = feat_type_out
         self.feat_type_hidden = nn.FieldType(self.gspace, latent_dim*[self.gspace.trivial_repr])
-        self.channels_inner = 48
-        self.channels_outer = 24
-        
+        self.dense_out_type = nn.FieldType(self.gspace,  self.hparams.channels[-1] * [self.gspace.trivial_repr])
 
+        trigger = 0 
+        inner_dim = self.hparams.im_dim
+        # number of output channels
+        for i in range(len(self.hparams.channels)):
+            inner_dim = int((inner_dim - (self.hparams.kernel_size[i] - 1)) / self.hparams.stride[i])
+            if self.hparams.max_pool:
+                if i in self.hparams.max_pool_loc:    
+                    inner_dim = int(1 + (inner_dim - self.hparams.max_pool_kernel_size + 1 ) / self.hparams.max_pool_kernel_size )
+    
+        print("inner_dim: ", inner_dim)
+        print(self.hparams.channels)
         ######################### Encoder ########################################
-        in_type_og  = feat_type_in        
-        
-        out_type = nn.FieldType(self.gspace, self.channels_outer*[self.gspace.trivial_repr])
-        # we choose 24 feature fields, each transforming under the regular representation of C8        
-        self.encoder_conv_list.append(
-            nn.R3Conv(in_type_og, out_type, kernel_size=kernel_size, padding=0, bias=False))
-        
-        # works
-        nn.ReLU(out_type, inplace=True)
-        nn.PointwiseNonLinearity(out_type, function='p_relu')
-        nn.QuotientFourierPointwise(
-            gspace = self.gspace,
-            channels = 8,
-            irreps=self.group.bl_sphere_representation(L=1).irreps,
-            grid = self.group.grid(type='thomson', N=8),
-            subgroup_id=(True, 'so3'),
-            function='p_relu',
-            inplace=True
-        )
+        for ind in range(len(self.hparams.channels)):
+            if ind == 0:
+                in_type  = feat_type_in        
+                channel_out = self.hparams.channels[0]
 
-        # Not working 
-        #nn.FourierPointwise(self.gspace, 
-        #                    channels = 8,
-        #                    irreps = self.group.bl_sphere_representation(L=1).irreps,
-        #                    grid = self.group.grid(type='thomson', N=9),
-        #                    function='p_relu', 
-        #                    inplace=True)
-        #nn.FourierELU(self.gspace,
-        #            channels = 8,
-        #            irreps= self.group.bl_sphere_representation(L=1).irreps,
-        #            grid = self.group.grid(type='thomson', N=16),
-        #            subgroup_id=(True, 'so3'),
-        #            inplace=True
-        #              )
-        # not working
-        #nn.InducedNormNonLinearity(out_type, function='n_sigmoid', bias=True)        
-        #nn.GatedNonLinearityUniform(out_type)
-
-        
-        self.encoder_conv_list.append(
-            nn.QuotientFourierPointwise(
-            gspace = self.gspace,
-            channels = 8,
-            irreps=self.group.bl_sphere_representation(L=1).irreps,
-            grid = self.group.grid(type='thomson', N=8),
-            subgroup_id=(True, 'so3'),
-            function='p_relu',
-            inplace=True
-            )
-        )
-        #activations
-
-
-        self.encoder_conv_list.append(
-            nn.PointwiseDropout(out_type, p=0.1)
-        )
-
-        #self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))
-        self.encoder_conv_list.append(nn.PointwiseAvgPoolAntialiased3D(out_type, sigma=0.66, stride=3))
-
-        in_type = out_type
-        out_type = nn.FieldType(self.gspace, self.channels_inner*[self.gspace.trivial_repr])
-        self.encoder_conv_list.append(nn.R3Conv(in_type, out_type, kernel_size=kernel_size, padding=0, bias=False))
-        self.encoder_conv_list.append(
-            nn.QuotientFourierELU(
-                gspace = self.gspace, 
-                channels = 3, 
-                irreps=self.group.bl_sphere_representation(L=1).irreps,
-                grid = self.group.sphere_grid(type='thomson', N=16),
-                subgroup_id=(True, 'so3'),
-                inplace=True
+            else: 
+                channel_in = self.hparams.channels[ind-1]
+                channel_out = self.hparams.channels[ind]
+                in_type = nn.FieldType(self.gspace, channel_in * [self.gspace.trivial_repr])
+            
+            out_type = nn.FieldType(self.gspace, channel_out * [self.gspace.trivial_repr])
+    
+            print('in_type: {} out_type: {}'.format(in_type, out_type))
+            
+            self.encoder_conv_list.append(
+                nn.R3Conv(
+                    in_type, 
+                    out_type, 
+                    kernel_size=kernel_size[ind], 
+                    padding=0, 
+                    bias=True,
                 )
             )
-        #self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))
-        self.encoder_conv_list.append(nn.PointwiseAvgPoolAntialiased3D(out_type, sigma=0.66, stride=3))
-        self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))
-        
-        #self.encoder_conv_list.append(nn.GroupPooling(out_type))
+            self.encoder_conv_list.append(nn.IIDBatchNorm3d(out_type))
+            self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))  
 
-        # number of output channels
-        
-        self.im_dim = 1
-        inner_dim = 1
-        print("inner_dim: ", inner_dim)
+            output_padding = 0
+            if inner_dim%2 == 1 and ind == len(self.hparams.channels)-1:
+                output_padding = 1
+
+            if dropout > 0: 
+                self.encoder_conv_list.append(nn.PointwiseDropout(out_type, p=dropout))
+
+            if trigger:
+                self.decoder_conv_list.append(R3Upsampling(
+                    in_type, 
+                    scale_factor=self.hparams.max_pool_kernel_size, 
+                    mode='nearest', 
+                    align_corners=False))
+                trigger = 0
+
+            if (self.hparams.max_pool and ind in self.hparams.max_pool_loc):
+                self.encoder_conv_list.append(
+                    nn.PointwiseAvgPoolAntialiased3D(
+                        out_type, 
+                        stride=self.hparams.max_pool_kernel_size,
+                        sigma = 0.66))
+                trigger = 1    
+
+            if dropout > 0:
+                self.decoder_conv_list.append(nn.PointwiseDropout(in_type, p=dropout))
+
+            # decoder
+            self.decoder_conv_list.append(nn.ReLU(in_type, inplace=True))
+            self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type))
+            self.decoder_conv_list.append(nn.R3ConvTransposed(
+                out_type, 
+                in_type, 
+                kernel_size=kernel_size[ind], 
+                output_padding=output_padding, 
+                bias=True))
+            
 
         for ind, h in enumerate(self.hparams.fully_connected_layers):
-            # if it's the last item in the list, then we want to output the latent dim
-                
+            # if it's the last item in the list, then we want to output the latent dim  
             if ind == 0:
                 self.list_dec_fully.append(torch.nn.Unflatten(1, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim)))        
                 self.list_enc_fully.append(torch.nn.Flatten())
@@ -181,55 +164,35 @@ class R3VAE(pl.LightningModule):
                 self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
 
             if ind == len(self.hparams.fully_connected_layers)-1:
-                self.list_dec_fully.append(torch.nn.Sigmoid())
+                self.list_dec_fully.append(torch.nn.LeakyReLU())
             else: 
                 self.list_dec_fully.append(torch.nn.ReLU())
             
             self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
 
-
-        self.fc_mu = nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim)
-        self.fc_var = nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim)
+        # sampling layers
+        self.fc_mu = torch.nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim)
+        self.fc_var = torch.nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim)
         h_out = self.hparams.latent_dim
-        nn.init.zeros_(self.fc_var.bias)
+        torch.nn.init.zeros_(self.fc_var.bias)
         self.list_dec_fully.append(torch.nn.Linear(self.hparams.latent_dim, self.hparams.fully_connected_layers[-1]))
 
-
-            
-
-        self.dense_out_type = nn.FieldType(self.gspace,  self.channels_inner * [self.gspace.trivial_repr])
-        out_type = nn.FieldType(self.gspace, self.hparams.latent_dim * self.channels_outer*[self.gspace.trivial_repr])
-        
-        self.decoder_conv_list.append(nn.R3ConvTransposed(self.dense_out_type, out_type, kernel_size=kernel_size, padding=2, bias=False))
-        self.decoder_conv_list.append(nn.ReLU(out_type, inplace=True))
-        self.decoder_conv_list.append(R3Upsampling(out_type, scale_factor=3, mode='nearest', align_corners=False))
-        self.decoder_conv_list.append(nn.R3ConvTransposed(
-            out_type, 
-            in_type_og, 
-            kernel_size=kernel_size, 
-            padding=0, 
-            bias=False))
-        self.decoder_conv_list.append(nn.ReLU(in_type_og, inplace=True))
-        self.decoder_conv_list.append(R3Upsampling(in_type_og, scale_factor=3, mode='nearest', align_corners=False))
-        
+        # reverse the list
+        self.list_dec_fully.reverse()
+        self.decoder_conv_list.reverse()
         self.encoder_fully_net = torch.nn.Sequential(*self.list_enc_fully)
         self.decoder_fully_net = torch.nn.Sequential(*self.list_dec_fully)
-        self.decoder = nn.SequentialModule(*self.decoder_conv_list)
+        summary(self.encoder_fully_net, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim), device="cpu")
+        summary(self.decoder_fully_net, tuple([latent_dim]), device="cpu")        
         self.encoder = nn.SequentialModule(*self.encoder_conv_list)
-        
-        
-        # summary on encoder    
-        #print(self.encoder)
-        #print(self.encoder_fully_net)
-        #print(self.decoder_fully_net)
-        #print(self.decoder)
-        #self.model = nn.SequentialModule(self.encoder, self.encoder_fully_net, self.decoder_fully_net, self.decoder)
-        #summary(self.encoder, (1, 32, 32, 32))
-        
+        self.decoder = nn.SequentialModule(*self.decoder_conv_list)
+
+
     def encode(self, x):
         x = self.feat_type_in(x)
         x = self.encoder(x)
         x = x.tensor
+        #print("x.shape: ", x.shape)
         x = self.encoder_fully_net(x)
         mu, var = torch.clamp(self.fc_mu(x), min=0.000001), torch.clamp(self.fc_var(x), min=0.000001)
         return mu, var
@@ -237,10 +200,12 @@ class R3VAE(pl.LightningModule):
 
     def decode(self, x):
         x = self.decoder_fully_net(x)
+        #print("x.shape: ", x.shape)
         #x = x.reshape(x.shape[0], self.channels_inner, self.im_dim, self.im_dim, self.im_dim)
         x = self.dense_out_type(x)
         x = self.decoder(x)
         x = x.tensor
+        #print("x.shape: ", x.shape)
         return x
    
     

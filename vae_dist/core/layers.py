@@ -19,7 +19,8 @@ class UpConvBatch(nn.Module):
                 padding_mode = padding_mode, 
                 output_padding=output_padding
             ),
-            nn.BatchNorm3d(out_channels)
+            nn.BatchNorm3d(out_channels),
+            nn.ReLU(inplace=True)
 
         )
 
