@@ -1,5 +1,4 @@
-import argparse, json, wandb
-from escnn import gspaces, nn                                         
+import argparse, json, wandb                                         
 import torch                                                      
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor

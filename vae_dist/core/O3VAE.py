@@ -136,12 +136,12 @@ class R3VAE(pl.LightningModule):
 
             # decoder
             self.decoder_conv_list.append(nn.ReLU(in_type, inplace=True))
-            self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type))
+            #self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type))
             self.decoder_conv_list.append(nn.R3ConvTransposed(
                 out_type, 
                 in_type, 
                 kernel_size=kernel_size[ind], 
-                output_padding=output_padding, 
+                output_padding=0, 
                 bias=True))
             
 
