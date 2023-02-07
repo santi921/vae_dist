@@ -135,7 +135,10 @@ class R3VAE(pl.LightningModule):
                 self.decoder_conv_list.append(nn.PointwiseDropout(in_type, p=dropout))
 
             # decoder
-            self.decoder_conv_list.append(nn.ReLU(in_type, inplace=True))
+            if ind == 0:
+                self.decoder_conv_list.append(nn.IdentityModule(in_type))
+            else: 
+                self.decoder_conv_list.append(nn.ReLU(in_type, inplace=True))
             #self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type))
             self.decoder_conv_list.append(nn.R3ConvTransposed(
                 out_type, 
@@ -243,12 +246,14 @@ class R3VAE(pl.LightningModule):
         p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
+        rmse = torch.sqrt(recon_loss)
         mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
         medpe = torch.median(torch.abs((x_hat - batch) / torch.abs(batch)))
         out_dict = {
             'elbo_train': elbo,
             'kl_train': kl,
             'recon_loss_train': recon_loss,
+            'rmse_train': rmse,
             'train_loss': elbo,
             'mape_train': mape, 
             "training_median_percent_error": medpe
@@ -269,6 +274,7 @@ class R3VAE(pl.LightningModule):
         p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
+        rmse = torch.sqrt(recon_loss)
         mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
         medpe = torch.median(torch.abs((x_hat - batch) / torch.abs(batch)))
         out_dict = {
@@ -276,6 +282,7 @@ class R3VAE(pl.LightningModule):
             'kl_test': kl,
             'recon_loss_test': recon_loss,
             'test_loss': elbo,
+            'rmse_test': rmse,
             'test_mape': mape,
             "training_median_percent_error": medpe
             }     
@@ -296,12 +303,14 @@ class R3VAE(pl.LightningModule):
         p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
+        rmse = torch.sqrt(recon_loss)
         mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
         medpe = torch.median(torch.abs((x_hat - batch) / torch.abs(batch)))
         out_dict = {
             'elbo_val': elbo,
             'kl_val': kl,
             'recon_loss_val': recon_loss,
+            'rmse_val': rmse,
             'val_loss': elbo,
             'mape_val': mape,
             "training_median_percent_error": medpe

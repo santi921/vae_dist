@@ -216,11 +216,13 @@ class CNNAutoencoderLightning(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
+        rmse_loss = torch.sqrt(loss)
         mape = torch.mean(torch.abs((predict - batch) / torch.abs(batch)))
         medpe = torch.median(torch.abs((predict - batch) / torch.abs(batch)))
         
         out_dict = {
             'train_loss': loss, 
+            'rmse_train': rmse_loss,
             'mape_train': mape,
             'medpe_train': medpe
 
@@ -233,10 +235,12 @@ class CNNAutoencoderLightning(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
+        rmse_loss = torch.sqrt(loss)
         mape = torch.mean(torch.abs((predict - batch) / torch.abs(batch)))
         medpe = torch.median(torch.abs((predict - batch) / torch.abs(batch)))
         out_dict = {
             'test_loss': loss, 
+            'rmse_test': rmse_loss,
             'mape_test': mape,
             'medpe_test': medpe
         }
@@ -248,10 +252,12 @@ class CNNAutoencoderLightning(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
+        rmse_loss = torch.sqrt(loss)
         mape = torch.mean(torch.abs((batch - predict) / torch.abs(batch)))
         medpe = torch.median(torch.abs((batch - predict) / torch.abs(batch)))
         out_dict = {
             'val_loss': loss,
+            'rmse_val': rmse_loss,
             'mape_val': mape,
             'medpe_val': medpe
         }

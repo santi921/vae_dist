@@ -2,10 +2,13 @@ import torch
 from torch import nn
 
 class UpConvBatch(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias, padding_mode, output_padding):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias, padding_mode, output_padding, output_layer=False):
         super(UpConvBatch, self).__init__()
-
-
+        if output_layer:
+            activation = nn.Identity()
+        else: 
+            activation = nn.ReLU()
+        
         self.up = nn.Sequential(
             nn.ConvTranspose3d(
                 in_channels = in_channels,
@@ -20,8 +23,7 @@ class UpConvBatch(nn.Module):
                 output_padding=output_padding
             ),
             nn.BatchNorm3d(out_channels),
-            nn.ReLU(inplace=True)
-
+            activation
         )
 
     def forward(self, x):

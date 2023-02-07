@@ -156,6 +156,10 @@ class baselineVAEAutoencoder(pl.LightningModule):
             if dropout > 0:
                 self.list_dec_conv.append(torch.nn.Dropout(dropout))
             
+            if ind == 0: 
+                output_layer = True
+            else:
+                output_layer = False
             self.list_dec_conv.append(
                 UpConvBatch(
                         in_channels = channel_out,
@@ -167,7 +171,8 @@ class baselineVAEAutoencoder(pl.LightningModule):
                         groups = self.hparams.groups,
                         bias = self.hparams.bias,
                         padding_mode = self.hparams.padding_mode,
-                        output_padding=output_padding
+                        output_padding=output_padding, 
+                        output_layer = output_layer
                 )
             )
 
@@ -244,7 +249,8 @@ class baselineVAEAutoencoder(pl.LightningModule):
         # reconstruction loss
         #recon_loss = self.gaussian_likelihood(x_hat, self.log_scale, x)
         recon_loss = F.mse_loss(x_hat, x, reduction='mean')
-        
+        rmse_loss = torch.sqrt(recon_loss)
+
         # kl
         p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
         kl = torch.distributions.kl_divergence(q, p)
@@ -260,6 +266,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
             'elbo_train': elbo,
             'kl_train': kl,
             'recon_loss_train': recon_loss,
+            'rmse_train': rmse_loss,
             'train_loss': elbo,
             'mape_train': mape,
             'medpe_train': medpe,
@@ -286,6 +293,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
         # reconstruction loss
         #recon_loss = self.gaussian_likelihood(x_hat, self.log_scale, x)
         recon_loss = F.mse_loss(x_hat, x, reduction='mean')
+        rmse_loss = torch.sqrt(recon_loss)
 
         # kl
         p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
@@ -300,6 +308,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
             'elbo_test': elbo,
             'kl_test': kl,
             'recon_loss_test': recon_loss,
+            'rmse_test': rmse_loss,
             'test_loss': elbo,
             'test_mape': mape,
             'test_medpe': medpe
@@ -327,6 +336,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
         # reconstruction loss
         #recon_loss = self.gaussian_likelihood(x_hat, self.log_scale, x)
         recon_loss = F.mse_loss(x_hat, x, reduction='mean')
+        rmse_loss = torch.sqrt(recon_loss)
 
         # kl
         p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
@@ -341,6 +351,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
             'elbo_val': elbo,
             'kl_val': kl,
             'recon_loss_val': recon_loss,
+            'rmse_val': rmse_loss,
             'val_loss': elbo,
             'mape_val': mape,
             'medpe_val': medpe
