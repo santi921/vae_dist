@@ -1,7 +1,7 @@
 {
     "irreps": null,
     "channels": [3, 32, 64, 128, 256, 512],
-    "kernel_size": [5, 4, 3, 2, 2],
+    "kernel_size": [2, 2, 2, 2, 2],
     "stride":      [1, 1, 1, 1, 1],
     "padding": 0,
     "dilation": 1,
@@ -17,6 +17,6 @@
     "im_dim": 21,
     "max_pool": true, 
     "max_pool_kernel_size": 2, 
-    "max_pool_loc": [2],
-    "dropout": 0.1,
+    "max_pool_loc": [0, 2],
+    "dropout": 0.1
 }

@@ -113,10 +113,10 @@ class CNNAutoencoderLightning(pl.LightningModule):
             channel_out = self.hparams.channels[ind+1]
             kernel = self.hparams.kernel_size[ind]
             stride = self.hparams.stride[ind]
-            #print( "channel_in: ", channel_in)
-            #print( "channel_out: ", channel_out)
-            #print( "kernel: ", kernel)
-            #print( "stride: ", stride)
+            print( "channel_in: ", channel_in)
+            print( "channel_out: ", channel_out)
+            print( "kernel: ", kernel)
+            print( "stride: ", stride)
             self.list_enc_conv.append(
                 ConvBatch(
                         in_channels = channel_in,

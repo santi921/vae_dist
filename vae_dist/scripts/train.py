@@ -3,7 +3,7 @@ import torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor
 from vae_dist.dataset.dataset import FieldDataset, dataset_split_loader
-from vae_dist.core.training import construct_model
+from vae_dist.core.training_utils import construct_model
 
 def main():              
 
