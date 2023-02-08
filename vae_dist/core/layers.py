@@ -6,25 +6,42 @@ class UpConvBatch(nn.Module):
         super(UpConvBatch, self).__init__()
         if output_layer:
             activation = nn.Identity()
+
+            self.up = nn.Sequential(
+                nn.ConvTranspose3d(
+                    in_channels = in_channels,
+                    out_channels = out_channels,
+                    kernel_size = kernel_size,
+                    stride = stride,
+                    padding = padding,
+                    dilation = dilation,
+                    groups = groups,
+                    bias = bias,
+                    padding_mode = padding_mode, 
+                    output_padding=output_padding
+                ),
+                activation
+            )
+
         else: 
             activation = nn.ReLU()
         
-        self.up = nn.Sequential(
-            nn.ConvTranspose3d(
-                in_channels = in_channels,
-                out_channels = out_channels,
-                kernel_size = kernel_size,
-                stride = stride,
-                padding = padding,
-                dilation = dilation,
-                groups = groups,
-                bias = bias,
-                padding_mode = padding_mode, 
-                output_padding=output_padding
-            ),
-            nn.BatchNorm3d(out_channels),
-            activation
-        )
+            self.up = nn.Sequential(
+                nn.ConvTranspose3d(
+                    in_channels = in_channels,
+                    out_channels = out_channels,
+                    kernel_size = kernel_size,
+                    stride = stride,
+                    padding = padding,
+                    dilation = dilation,
+                    groups = groups,
+                    bias = bias,
+                    padding_mode = padding_mode, 
+                    output_padding=output_padding
+                ),
+                #nn.BatchNorm3d(out_channels),
+                activation
+            )
 
     def forward(self, x):
         return self.up(x)

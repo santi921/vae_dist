@@ -105,7 +105,7 @@ class R3VAE(pl.LightningModule):
                     bias=True,
                 )
             )
-            self.encoder_conv_list.append(nn.IIDBatchNorm3d(out_type))
+            #self.encoder_conv_list.append(nn.IIDBatchNorm3d(out_type))
             self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))  
 
             output_padding = 0

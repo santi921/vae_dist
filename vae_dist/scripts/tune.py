@@ -34,7 +34,7 @@ class training:
             data_dir, 
             transform=False, 
             augmentation=False,
-            standardize=False,
+            standardize=True,
             device=device, 
             log_scale=log_scale
             )
