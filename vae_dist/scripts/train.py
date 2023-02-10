@@ -103,6 +103,7 @@ def main():
     model.eval()
     # save state dict
     torch.save(model.state_dict(), log_save_dir + "/model_1.ckpt")
+    torch.save(model, log_save_dir + "/model_1.pt")
     run.finish()
 
 main()

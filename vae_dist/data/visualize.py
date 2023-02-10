@@ -257,7 +257,10 @@ def get_latent_space(model, dataset, comp=[0, 2], latent_dim=10):
         latent = model.latent(field)
         #print(latent.shape)
         latent_space.append(latent.detach().cpu().numpy())
-    return np.array(latent_space).reshape(-1, latent_dim)[:, comp]
+    if comp == []:
+        return np.array(latent_space).reshape(-1, latent_dim)
+    else: 
+        return np.array(latent_space).reshape(-1, latent_dim)[:, comp]
 
 
 def plot_vfield(mat, cutoff_low = 95, cutoff_high = 99.999, min_max = True, scale = 10):
