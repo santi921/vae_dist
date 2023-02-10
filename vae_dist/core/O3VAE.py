@@ -3,8 +3,8 @@ from torchsummary import summary
 from torch.nn import functional as F
 
 import pytorch_lightning as pl
-from escnn import nn, group                                        
-
+from escnn import nn                                        
+from vae_dist.core.losses import stepwise_inverse_huber_loss, inverse_huber
 from vae_dist.core.escnnlayers import R3Upsampling
 
 
@@ -28,6 +28,7 @@ class R3VAE(pl.LightningModule):
         fully_connected_layers=[64, 64, 64],
         log_wandb=False,
         im_dim=21,
+        reconstruction_loss='mse',
         **kwargs
         ):
 
@@ -54,6 +55,7 @@ class R3VAE(pl.LightningModule):
             'beta': beta,
             'log_wandb': log_wandb,
             'im_dim': im_dim,
+            'reconstruction_loss': reconstruction_loss,
         }
         self.hparams.update(params)
         #self.save_hyperparameters()
@@ -230,7 +232,19 @@ class R3VAE(pl.LightningModule):
 
 
     def loss_function(self, x, x_hat, q, p): 
-        recon_loss = F.mse_loss(x_hat, x, reduction='mean')
+        if self.hparams.reconstruction_loss == "mse":
+            recon_loss = F.mse_loss(x_hat, x, reduction='mean')
+        
+        elif self.hparams.reconstruction_loss == "l1":
+            recon_loss = F.l1_loss(x_hat, x, reduction='mean')
+
+        elif self.hparams.reconstruction_loss == "huber":
+            recon_loss = F.huber_loss(x_hat, x, reduction='mean')
+        elif self.hparams.reconstruction_loss == 'many_step_inverse_huber':
+            recon_loss = stepwise_inverse_huber_loss(x_hat, x, delta1=0.1, delta2=0.001)
+        elif self.hparams.reconstruction_loss == 'inverse_huber': 
+            recon_loss = inverse_huber(x_hat, x, delta = 0.1)
+        #recon_l_1_2 = torch.sqrt(recon_loss)
         kl = torch.distributions.kl_divergence(q, p).mean()
         elbo = (kl + self.hparams.beta * recon_loss)
         return elbo, kl, recon_loss

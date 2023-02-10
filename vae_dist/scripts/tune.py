@@ -64,16 +64,17 @@ class training:
         
         lr_monitor = LearningRateMonitor(logging_interval='step')
         trainer = pl.Trainer(
-                max_epochs=config['epochs'], 
-                accelerator='gpu', 
-                devices = [0],
-                accumulate_grad_batches=5, 
-                enable_progress_bar=True,
-                callbacks=[
-                    pl.callbacks.EarlyStopping(monitor='val_loss', patience=100, verbose = True),
-                    lr_monitor],
-                enable_checkpointing=True,
-                default_root_dir=log_save_dir
+            max_epochs=config['epochs'], 
+            accelerator='gpu', 
+            devices = [0],
+            accumulate_grad_batches=5, 
+            enable_progress_bar=True,
+            gradient_clip_val=0.5,
+            callbacks=[
+                pl.callbacks.EarlyStopping(monitor='val_loss', patience=50, verbose = False),
+                lr_monitor],
+            enable_checkpointing=True,
+            default_root_dir=log_save_dir
         )
 
         return model_obj, trainer, log_save_dir
@@ -89,6 +90,7 @@ class training:
                 model_obj, 
                 self.data_loader_train, 
                 self.data_loader_test
+            
                 )
             model_obj.eval()
             # save state dict
@@ -139,7 +141,7 @@ if __name__ == "__main__":
     method = "bayes" 
     dataset_name = "base"
     project_name = "vae_dist"
-    data_dir = '../../data/cpet/'
+    data_dir = '../../data/cpet_augmented/'
     sweep_config = {}
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
@@ -160,7 +162,7 @@ if __name__ == "__main__":
     
     sweep_id = wandb.sweep(sweep_config, project = project_name)
     training_obj = training(
-        data_dir,
+        data_dir, 
         model = model, 
         device = device,
         log_scale=True, 

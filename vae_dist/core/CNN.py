@@ -4,7 +4,8 @@ import torch, wandb
 from torchsummary import summary
 from vae_dist.core.layers import UpConvBatch, ConvBatch, ResNetBatch
 import pytorch_lightning as pl
-
+from vae_dist.core.losses import stepwise_inverse_huber_loss, inverse_huber
+from torch.nn import functional as F
 class CNNAutoencoderLightning(pl.LightningModule):
     def __init__(
         self,
@@ -28,6 +29,7 @@ class CNNAutoencoderLightning(pl.LightningModule):
         max_pool_loc=[3],
         log_wandb=False,
         im_dim=21,
+        reconstruction_loss='mse',
         **kwargs
     ):
         super().__init__()
@@ -52,7 +54,8 @@ class CNNAutoencoderLightning(pl.LightningModule):
             'im_dim': im_dim,
             'max_pool': max_pool,
             'max_pool_kernel_size': max_pool_kernel_size,
-            'max_pool_loc': max_pool_loc
+            'max_pool_loc': max_pool_loc,
+            'reconstruction_loss': reconstruction_loss
         }
         # asset len(channels) == len(kernel_size)
         assert len(channels) == len(stride) + 1, "channels and stride must be the same length"
@@ -97,7 +100,7 @@ class CNNAutoencoderLightning(pl.LightningModule):
                 self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
 
             if ind == len(self.hparams.fully_connected_layers)-1:
-                self.list_dec_fully.append(torch.nn.Sigmoid())
+                self.list_dec_fully.append(torch.nn.ReLU())
             else: 
                 self.list_dec_fully.append(torch.nn.ReLU())
             
@@ -152,6 +155,11 @@ class CNNAutoencoderLightning(pl.LightningModule):
             if dropout > 0:
                 self.list_dec_conv.append(torch.nn.Dropout(dropout))
             
+            if ind == 0: 
+                output_layer = True
+            else:
+                output_layer = False
+            
             self.list_dec_conv.append(
                 UpConvBatch(
                         in_channels = channel_out,
@@ -163,7 +171,8 @@ class CNNAutoencoderLightning(pl.LightningModule):
                         groups = self.hparams.groups,
                         bias = self.hparams.bias,
                         padding_mode = self.hparams.padding_mode,
-                        output_padding=output_padding
+                        output_padding=output_padding,
+                        output_layer = output_layer
                 )
             )
 
@@ -210,8 +219,20 @@ class CNNAutoencoderLightning(pl.LightningModule):
 
 
     def loss_function(self, x, x_hat): 
-        return nn.MSELoss()(x_hat, x)
         
+        if self.hparams.reconstruction_loss == "mse":
+            recon_loss = F.mse_loss(x_hat, x, reduction='mean')
+        elif self.hparams.reconstruction_loss == "l1":
+            recon_loss = F.l1_loss(x_hat, x, reduction='mean')
+        elif self.hparams.reconstruction_loss == "huber":
+            recon_loss = F.huber_loss(x_hat, x, reduction='mean')
+        elif self.hparams.reconstruction_loss == 'many_step_inverse_huber':
+            recon_loss = stepwise_inverse_huber_loss(x_hat, x, reduction='mean')
+        elif self.hparams.reconstruction_loss == 'inverse_huber': 
+            recon_loss = inverse_huber(x_hat, x, reduction='mean')
+        
+        return recon_loss
+    
 
     def training_step(self, batch, batch_idx):
         predict = self.forward(batch)

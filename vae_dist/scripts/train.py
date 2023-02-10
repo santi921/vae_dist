@@ -81,18 +81,17 @@ def main():
 
     lr_monitor = LearningRateMonitor(logging_interval='step')
     trainer = pl.Trainer(
-        auto_scale_batch_size="binsearch", 
         max_epochs=epochs, 
         accelerator='gpu', 
         devices = [0],
         accumulate_grad_batches=5, 
         enable_progress_bar=True,
+        gradient_clip_val=0.5,
         callbacks=[
             pl.callbacks.EarlyStopping(monitor='val_loss', patience=50, verbose = False),
             lr_monitor],
         enable_checkpointing=True,
         default_root_dir=log_save_dir
-
     )
 
     trainer.fit(

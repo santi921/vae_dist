@@ -1,17 +1,19 @@
 {
-    "channels": [32, 64, 128, 256, 512],
-    "kernel_size": [4, 3, 3, 3, 3],
-    "stride":      [1, 1, 1, 1, 1],
-    "latent_dim": 2,
+    "channels": [32, 64, 128],
+    "kernel_size": [4, 5, 4],
+    "stride":      [1, 1, 1],
+    "latent_dim": 10,
     "dilation": 1,
-    "learning_rate": 0.0001,
+    "learning_rate": 0.00001,
     "fully_connected_layers": [100, 10],
     "log_wandb": true,
     "im_dim": 21,
     "max_pool": true, 
     "max_pool_kernel_size": 2, 
-    "max_pool_loc": [2],
-    "dropout": 0.1,
+    "max_pool_loc": [1, 3],
+    "dropout": 0.0,
     "batch_size": 32,
-    "beta": 25.0
+    "batch_norm": false,
+    "beta": 1000.0,
+    "reconstruction_loss": "inverse_huber"
 }

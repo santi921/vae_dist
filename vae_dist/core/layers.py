@@ -52,17 +52,17 @@ class ConvBatch(nn.Module):
         super(ConvBatch, self).__init__()
         self.conv = nn.Sequential(
             nn.Conv3d(
-            in_channels = in_channels,
-            out_channels = out_channels,
-            kernel_size = kernel_size,
-            stride = stride,
-            padding = padding,
-            dilation = dilation,
-            groups = groups,
-            bias = bias,
-            padding_mode = padding_mode
+                in_channels = in_channels,
+                out_channels = out_channels,
+                kernel_size = kernel_size,
+                stride = stride,
+                padding = padding,
+                dilation = dilation,
+                groups = groups,
+                bias = bias,
+                padding_mode = padding_mode
             ),
-            nn.BatchNorm3d(out_channels),
+            #nn.BatchNorm3d(out_channels),
             nn.ReLU(inplace=True)
         )
         

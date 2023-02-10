@@ -167,6 +167,7 @@ def hyperparameter_dicts():
         "batch_norm": {"values": [True, False]},
         "dropout": {'values': [0.0, 0.1, 0.25, 0.4]},
         "learning_rate": {"min": 0.0001, "max": 0.01, "distribution": "log_uniform_values"},   
+        "reconstruction_loss": {"values": ["mse", "l1", "huber", "inverse_huber", "many_step_inverse_huber"]},
     }
 
     dict_vae = {

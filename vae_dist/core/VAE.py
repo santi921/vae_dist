@@ -3,7 +3,8 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 import pytorch_lightning as pl
-from vae_dist.core.layers import UpConvBatch, ConvBatch, ResNetBatch
+from vae_dist.core.layers import UpConvBatch, ConvBatch
+from vae_dist.core.losses import stepwise_inverse_huber_loss, inverse_huber
 from torchsummary import summary
 
 class baselineVAEAutoencoder(pl.LightningModule):
@@ -30,6 +31,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
         max_pool_loc=[3],
         log_wandb=False,
         im_dim=21,
+        reconstruction_loss='mse',
         **kwargs
     ):
 
@@ -57,7 +59,8 @@ class baselineVAEAutoencoder(pl.LightningModule):
             'max_pool': max_pool,
             'fully_connected_layers': fully_connected_layers,
             'max_pool_kernel_size': max_pool_kernel_size,
-            'max_pool_loc': max_pool_loc
+            'max_pool_loc': max_pool_loc,
+            'reconstruction_loss': reconstruction_loss
         }
         assert len(channels) == len(stride) + 1, "channels and stride must be the same length"
         assert len(stride) == len(kernel_size), "stride and kernel_size must be the same length"
@@ -277,6 +280,26 @@ class baselineVAEAutoencoder(pl.LightningModule):
         return elbo
 
 
+    def loss_function(self, x, x_hat, q, p): 
+        if self.hparams.reconstruction_loss == "mse":
+            recon_loss = F.mse_loss(x_hat, x, reduction='mean')
+        
+        elif self.hparams.reconstruction_loss == "l1":
+            recon_loss = F.l1_loss(x_hat, x, reduction='mean')
+
+        elif self.hparams.reconstruction_loss == "huber":
+            recon_loss = F.huber_loss(x_hat, x, reduction='mean')
+        elif self.hparams.reconstruction_loss == 'many_step_inverse_huber':
+            recon_loss = stepwise_inverse_huber_loss(x_hat, x, reduction='mean')
+        elif self.hparams.reconstruction_loss == 'inverse_huber': 
+            recon_loss = inverse_huber(x_hat, x, reduction='mean')
+        #recon_l_1_2 = torch.sqrt(recon_loss)
+        kl = torch.distributions.kl_divergence(q, p).mean()
+        elbo = (kl + self.hparams.beta * recon_loss)
+        return elbo, kl, recon_loss
+
+
+
     def test_step(self, batch, batch_idx):
         x = batch
         x_encoded = self.encoder(x)
@@ -289,17 +312,9 @@ class baselineVAEAutoencoder(pl.LightningModule):
 
         # decoded
         x_hat = self.decoder(z)
-
-        # reconstruction loss
-        #recon_loss = self.gaussian_likelihood(x_hat, self.log_scale, x)
-        recon_loss = F.mse_loss(x_hat, x, reduction='mean')
-        rmse_loss = torch.sqrt(recon_loss)
-
         # kl
         p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
-        kl = torch.distributions.kl_divergence(q, p).mean()
-
-        # elbo
+        elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
         elbo = (kl + self.hparams.beta * recon_loss)
         mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
         medpe = torch.median(torch.abs((x_hat - batch) / torch.abs(batch)))
@@ -308,7 +323,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
             'elbo_test': elbo,
             'kl_test': kl,
             'recon_loss_test': recon_loss,
-            'rmse_test': rmse_loss,
+            'rmse_test': recon_loss,
             'test_loss': elbo,
             'test_mape': mape,
             'test_medpe': medpe
