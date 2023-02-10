@@ -177,7 +177,8 @@ class R3CNN(pl.LightningModule):
         #self.fc_mu = torch.nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim)
         #self.fc_var = torch.nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim)
         h_out = self.hparams.latent_dim
-        torch.nn.init.zeros_(self.fc_var.bias)
+        #torch.nn.init.zeros_(self.fc_var.bias)
+        
         self.list_dec_fully.append(torch.nn.Linear(self.hparams.latent_dim, self.hparams.fully_connected_layers[-1]))
 
         # reverse the list
@@ -201,7 +202,7 @@ class R3CNN(pl.LightningModule):
 
     def decode(self, x):
         x = self.decoder_fully_net(x)
-        x = x.reshape(x.shape[0], self.channels_inner, self.inner_dim, self.inner_dim, self.inner_dim)
+        #x = x.reshape(x.shape[0], self.channels_inner, self.inner_dim, self.inner_dim, self.inner_dim)
         x = self.dense_out_type(x)
         x = self.decoder(x)
         x = x.tensor
