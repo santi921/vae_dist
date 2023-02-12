@@ -87,7 +87,15 @@ def construct_model_hyper(model, options):
         model = R3VAE(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)
     
     elif model == 'escnn':
-
+        options_non_wandb = {
+            "log_wandb": True,
+            "im_dim": 21,
+            "activation": "relu",
+            "groups": 1,
+            "padding": 0,
+            "dilation": 1,
+            "irreps": None 
+        }
         g = group.o3_group()
         gspace = gspaces.flipRot3dOnR3(maximum_frequency=10) 
         #gspace = gspace.no_base_space(g)
@@ -133,11 +141,44 @@ def construct_model_hyper(model, options):
 def hyperparameter_dicts():
     dict_ret = {}
     
-    dict_escnn = {}
+    dict_escnn = {
+        "architecture": {"values":[
+                    {
+                        "channels": [32, 64, 128, 256, 512],
+                        "kernel_size": [4, 3, 3, 3, 3],
+                        "stride":      [1, 1, 1, 1, 1],
+                        "max_pool": True, 
+                        "max_pool_kernel_size": 2, 
+                        "max_pool_loc": [2],
+                        "padding_mode": "zeros"
+                    },
+                    {
+                        "channels": [32, 64, 128],
+                        "kernel_size": [4, 5, 4],
+                        "stride":      [1, 1, 1],
+                        "max_pool": True, 
+                        "max_pool_kernel_size": 2, 
+                        "max_pool_loc": [1, 3],
+                        "padding_mode": "zeros"
+                    },
+
+                    ]
+                },
+        "bias": {"values": [True]},
+        "epochs": {"values": [100, 500, 1000]},
+        "latent_dim": {"values": [2, 5, 10, 25]},
+        "fully_connected_layers": {"values": [[100, 10], [100], [100, 50, 10], [50]]},
+        "batch_norm": {"values": [True, False]},
+        "dropout": {'values': [0.0, 0.1, 0.25, 0.4]},
+        "learning_rate": {"min": 0.0001, "max": 0.01, "distribution": "log_uniform_values"},   
+        "reconstruction_loss": {"values": ["mse", "l1", "huber", "inverse_huber", "many_step_inverse_huber"]},
+
+
+    }
     
     dict_esvae = {
         "beta": {"values": [0.001, 0.01,1, 10, 100]},
-         "architecture": {"values":[
+        "architecture": {"values":[
                     {
                         "channels": [32, 64, 128, 256, 512],
                         "kernel_size": [4, 3, 3, 3, 3],

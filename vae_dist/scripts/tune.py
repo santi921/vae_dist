@@ -30,16 +30,18 @@ class training:
         print("data_dir: ", self.data_dir)
         print("project: ", self.project)
 
-        dataset_vanilla = FieldDataset(
+        dataset = FieldDataset(
             data_dir, 
             transform=False, 
             augmentation=False,
             standardize=True,
-            device=device, 
-            log_scale=log_scale
+            lower_filter=True,
+            log_scale=log_scale, 
+            device=device
             )
-
-        dataset_loader_full, dataset_loader_train, dataset_loader_test= dataset_split_loader(dataset_vanilla, train_split=0.8, num_workers=0)
+        # check if dataset has any inf or nan values
+        print("Dataset has inf or nan values: ", torch.isnan(dataset.dataset_to_tensor()).any())
+        dataset_loader_full, dataset_loader_train, dataset_loader_test= dataset_split_loader(dataset, train_split=0.8, num_workers=0)
         self.data_loader_full = dataset_loader_full
         self.data_loader_train = dataset_loader_train
         self.data_loader_test = dataset_loader_test
@@ -92,9 +94,19 @@ class training:
                 self.data_loader_test
             
                 )
+            # update config to include dataset parameters
+            config.update(
+                {"aug": self.aug, 
+                 "standardize": self.standardize, 
+                 "log_scale": self.log_scale, 
+                 "model": self.model, 
+                 "device": self.device, 
+                 "data_dir": self.data_dir})
             model_obj.eval()
             # save state dict
             torch.save(model_obj.state_dict(), log_save_dir + "/model_1.ckpt")
+            # save model
+            #torch.save(model_obj, log_save_dir + "/model_1.pt")
             run.finish() 
 
             
@@ -109,7 +121,7 @@ if __name__ == "__main__":
         "-dataset",
         action="store",
         dest="dataset",
-        default=1,
+        default='../../data/cpet_augmented/',
         help="dataset to use",
     )
 
@@ -125,7 +137,7 @@ if __name__ == "__main__":
         "-model",
         action="store",
         dest="model",
-        default=" auto",
+        default="auto",
         help="model",
     )
 
@@ -141,13 +153,14 @@ if __name__ == "__main__":
     method = "bayes" 
     dataset_name = "base"
     project_name = "vae_dist"
-    data_dir = '../../data/cpet_augmented/'
+    #data_dir = '../../data/cpet_augmented/'
     sweep_config = {}
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     results = parser.parse_args()
     model = str(results.model)
-    dataset_int = int(results.dataset)
+    data_dir = str(results.dataset)
+    #dataset_int = int(results.dataset)
     count = int(results.count)
     aug = bool(results.aug)
     

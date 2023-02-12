@@ -34,9 +34,10 @@ def main():
         transform=False, 
         augmentation=False,
         standardize=True,
-        device=device, 
-        log_scale=True
-        )
+        lower_filter=True,
+        log_scale=True, 
+        device=device
+    )
 
     if model_select == 'escnn':
         options = json.load(open('./options/options_escnn_default.json'))
@@ -103,7 +104,7 @@ def main():
     model.eval()
     # save state dict
     torch.save(model.state_dict(), log_save_dir + "/model_1.ckpt")
-    torch.save(model, log_save_dir + "/model_1.pt")
+    #torch.save(model, log_save_dir + "/model_1.pt")
     run.finish()
 
 main()
