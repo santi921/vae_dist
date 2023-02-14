@@ -261,8 +261,8 @@ class R3VAE(pl.LightningModule):
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
         rmse = torch.sqrt(recon_loss)
-        mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
-        medpe = torch.median(torch.abs((x_hat - batch) / torch.abs(batch)))
+        mape = torch.mean(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
+        medpe = torch.median(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
         out_dict = {
             'elbo_train': elbo,
             'kl_train': kl,
@@ -289,8 +289,8 @@ class R3VAE(pl.LightningModule):
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
         rmse = torch.sqrt(recon_loss)
-        mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
-        medpe = torch.median(torch.abs((x_hat - batch) / torch.abs(batch)))
+        mape = torch.mean(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
+        medpe = torch.median(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
         out_dict = {
             'elbo_test': elbo,
             'kl_test': kl,
@@ -318,8 +318,8 @@ class R3VAE(pl.LightningModule):
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
         rmse = torch.sqrt(recon_loss)
-        mape = torch.mean(torch.abs((x_hat - batch) / torch.abs(batch)))
-        medpe = torch.median(torch.abs((x_hat - batch) / torch.abs(batch)))
+        mape = torch.mean(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
+        medpe = torch.median(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
         out_dict = {
             'elbo_val': elbo,
             'kl_val': kl,

@@ -1,16 +1,16 @@
 {
     "irreps": null,
     "channels": [3, 32, 64, 128, 256, 512],
-    "kernel_size": [5, 4, 3, 2, 2],
+    "kernel_size": [4, 3, 3, 3, 3],
     "stride":      [1, 1, 1, 1, 1],
     "padding": 0,
     "dilation": 1,
     "groups": 1,
     "bias": true,
     "padding_mode": "zeros",
-    "latent_dim": 2,
+    "latent_dim": 50,
     "activation": "relu",
-    "fully_connected_layers": [100, 10],
+    "fully_connected_layers": [100, 100, 50],
     "dropout": 0.1,
     "drop_out_rate": 0.1,
     "batch_norm": true,
@@ -20,5 +20,6 @@
     "max_pool": true, 
     "max_pool_kernel_size": 2, 
     "max_pool_loc": [2],
-    "beta": 1.0
+    "beta": 10000.0,
+    "reconstruction_loss": "huber"
 }

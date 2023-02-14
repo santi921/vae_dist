@@ -179,7 +179,11 @@ class R3CNN(pl.LightningModule):
         h_out = self.hparams.latent_dim
         #torch.nn.init.zeros_(self.fc_var.bias)
         
-        self.list_dec_fully.append(torch.nn.Linear(self.hparams.latent_dim, self.hparams.fully_connected_layers[-1]))
+        self.list_dec_fully.append(
+            torch.nn.Linear(self.hparams.latent_dim, self.hparams.fully_connected_layers[-1]))
+        self.list_enc_fully.append(
+            torch.nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim))
+        self.list_enc_fully.append(torch.nn.ReLU())
 
         # reverse the list
         self.list_dec_fully.reverse()
@@ -228,8 +232,8 @@ class R3CNN(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         rmse_loss = torch.sqrt(loss)
-        mape = torch.mean(torch.abs((predict - batch) / torch.abs(batch)))
-        medpe = torch.median(torch.abs((predict - batch) / torch.abs(batch))).item()
+        mape = torch.mean(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
+        medpe = torch.median(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
         out_dict = {
             "train_loss": loss,
             "rmse_train": rmse_loss,
@@ -246,8 +250,8 @@ class R3CNN(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         rmse_loss = torch.sqrt(loss)
-        mape = torch.mean(torch.abs((predict - batch) / torch.abs(batch)))
-        medpe = torch.median(torch.abs((predict - batch) / torch.abs(batch))).item()
+        mape = torch.mean(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
+        medpe = torch.median(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
         out_dict = {
             "test_loss": loss,
             "test_mape": mape,
@@ -263,8 +267,8 @@ class R3CNN(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         rmse_loss = torch.sqrt(loss)
-        mape = torch.mean(torch.abs((predict - batch) / torch.abs(batch)))
-        medpe = torch.median(torch.abs((predict - batch) / torch.abs(batch))).item()
+        mape = torch.mean(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
+        medpe = torch.median(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
         out_dict = {
             "val_loss": loss,
             "rmse_val": rmse_loss,

@@ -178,7 +178,7 @@ if __name__ == "__main__":
         data_dir, 
         model = model, 
         device = device,
-        log_scale=True, 
+        log_scale=False, 
         aug=aug,
         standardize=True,
         project = project_name)

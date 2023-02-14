@@ -194,8 +194,8 @@ class CNNAutoencoderLightning(pl.LightningModule):
 
         #self.decoder.to(self.device)
         #self.encoder.to(self.device)
-        summary(self.encoder_conv, (3, 21, 21, 21), device="cpu")
-        summary(self.encoder, (3, 21, 21, 21), device="cpu")
+        summary(self.encoder_conv, (self.hparams.channels[0], 21, 21, 21), device="cpu")
+        summary(self.encoder, (self.hparams.channels[0], 21, 21, 21), device="cpu")
         summary(self.decoder_dense, tuple([latent_dim]), device="cpu")
         summary(self.decoder_conv, (channels[-1], inner_dim, inner_dim, inner_dim), device="cpu")
         
@@ -221,15 +221,15 @@ class CNNAutoencoderLightning(pl.LightningModule):
     def loss_function(self, x, x_hat): 
         
         if self.hparams.reconstruction_loss == "mse":
-            recon_loss = F.mse_loss(x_hat, x, reduction='mean')
+            recon_loss = F.mse_loss(x_hat, x, reduction='sum')
         elif self.hparams.reconstruction_loss == "l1":
-            recon_loss = F.l1_loss(x_hat, x, reduction='mean')
+            recon_loss = F.l1_loss(x_hat, x, reduction='sum')
         elif self.hparams.reconstruction_loss == "huber":
-            recon_loss = F.huber_loss(x_hat, x, reduction='mean')
+            recon_loss = F.huber_loss(x_hat, x, reduction='sum')
         elif self.hparams.reconstruction_loss == 'many_step_inverse_huber':
-            recon_loss = stepwise_inverse_huber_loss(x_hat, x, reduction='mean')
+            recon_loss = stepwise_inverse_huber_loss(x_hat, x, reduction='sum')
         elif self.hparams.reconstruction_loss == 'inverse_huber': 
-            recon_loss = inverse_huber(x_hat, x, reduction='mean')
+            recon_loss = inverse_huber(x_hat, x, reduction='sum')
         
         return recon_loss
     
@@ -238,8 +238,8 @@ class CNNAutoencoderLightning(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         rmse_loss = torch.sqrt(loss)
-        mape = torch.mean(torch.abs((predict - batch) / torch.abs(batch)))
-        medpe = torch.median(torch.abs((predict - batch) / torch.abs(batch)))
+        mape = torch.mean(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
+        medpe = torch.median(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
         
         out_dict = {
             'train_loss': loss, 
@@ -257,8 +257,8 @@ class CNNAutoencoderLightning(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         rmse_loss = torch.sqrt(loss)
-        mape = torch.mean(torch.abs((predict - batch) / torch.abs(batch)))
-        medpe = torch.median(torch.abs((predict - batch) / torch.abs(batch)))
+        mape = torch.mean(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
+        medpe = torch.median(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
         out_dict = {
             'test_loss': loss, 
             'rmse_test': rmse_loss,
@@ -274,8 +274,10 @@ class CNNAutoencoderLightning(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         rmse_loss = torch.sqrt(loss)
-        mape = torch.mean(torch.abs((batch - predict) / torch.abs(batch)))
-        medpe = torch.median(torch.abs((batch - predict) / torch.abs(batch)))
+        denom = (torch.abs(batch) + torch.abs(predict)) / 2 + 1e-8
+        mape = torch.mean(torch.abs((predict - batch) / denom))
+        medpe = torch.median(torch.abs((predict - batch) / denom))
+        
         out_dict = {
             'val_loss': loss,
             'rmse_val': rmse_loss,
@@ -292,7 +294,7 @@ class CNNAutoencoderLightning(pl.LightningModule):
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, 
             mode='min', 
-            factor=0.1, 
+            factor=0.5, 
             patience=10, 
             verbose=True, 
             threshold=0.0001, 

@@ -12,7 +12,12 @@ class FieldDataset(torch.utils.data.Dataset):
             augmentation=None, 
             standardize=True, 
             log_scale=False,
-            lower_filter=False, device='cpu'):
+            lower_filter=False, 
+            scalar=False,
+            device='cpu', 
+            mean_mag=None,
+            st_mag=None):
+        
         fields, shape, names = pull_fields(root, ret_names=True)
         data = fields.reshape([len(fields), 3, shape[0], shape[1], shape[2]])
         # print if anything in data is nan or inf
@@ -52,24 +57,29 @@ class FieldDataset(torch.utils.data.Dataset):
 
         if standardize:
             # standardize every field 
-            data = (data - self.mean_mag) / (self.st_mag + 1)            
-        
+            if mean_mag == None and st_mag == None:
+                data = (data - self.mean_mag) / (self.st_mag + 1)            
+            else: 
+                data = (data - mean_mag) / (st_mag + 1)    
         if transform:
             transform_mat = []
             for i in range(data.shape[0]):
                 transform_mat.append(helmholtz_hodge_decomp_approx(data[i]))
             transform_mat = np.array(transform_mat)
             data = transform_mat
+        
+        if scalar:
+            data = self.mags.reshape([len(fields), 1, shape[0], shape[1], shape[2]])
 
-        if lower_filter:
-            filter_mat = []
-            for i in range(data.shape[0]):
-                filter_mat.append(filter(
-                    data[i], 
-                    cutoff_low_percentile=50, 
-                    cutoff_high_percentile=False))
-            filter_mat = np.array(filter_mat)   
-            data = filter_mat
+        #if lower_filter:
+        #    filter_mat = []
+        #    for i in range(data.shape[0]):
+        #        filter_mat.append(filter(
+        #            data[i], 
+        #            cutoff_low_percentile=50, 
+        #            cutoff_high_percentile=False))
+        #    filter_mat = np.array(filter_mat)   
+        #    data = filter_mat
 
             #print("filter max of data: ", data.max())
         
@@ -84,6 +94,7 @@ class FieldDataset(torch.utils.data.Dataset):
         print("Nan values in dataset: ", np.isnan(data).any())
         print("Inf values in dataset: ", np.isinf(data).any())        
         self.shape = shape
+        self.scalar = scalar
         self.data = data
         self.dataraw = self.data
         self.transform = False
@@ -109,9 +120,6 @@ class FieldDataset(torch.utils.data.Dataset):
             else:
                 data = self.augmentation(self.data[index])
             
-        elif self.transform:
-            data = self.transform(self.data[index])
-
         else:
             data = self.data[index]
 
@@ -119,7 +127,9 @@ class FieldDataset(torch.utils.data.Dataset):
         data = torch.tensor(data)
 
         if not self.augmentation and len(index) == 1:
-            data = data.reshape([3, self.shape[0], self.shape[1], self.shape[2]])
+            channels = 3 
+            if self.scalar: channels = 1
+            data = data.reshape([channels, self.shape[0], self.shape[1], self.shape[2]])
             
         #if len(index) == 1 and self.augmentation:
         #    data = data.reshape([3, self.shape[0], self.shape[1], self.shape[2]])
