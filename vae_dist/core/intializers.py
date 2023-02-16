@@ -1,37 +1,40 @@
 import math 
+from torch import nn 
 
-
-def kaiming_init(model):
+def xavier_init(model):
+    
     for name, param in model.named_parameters():
-        print("param name: {}".format(name))
-        print("param shape: {}".format(param.shape))
-        
         if name.endswith(".bias"):
             param.data.fill_(0)
-        elif name.startswith("layers.0"):  # The first layer does not have ReLU applied on its input
-            param.data.normal_(0, 1 / math.sqrt(param.shape[1]))
         else:
-            param.data.normal_(0, math.sqrt(2) / math.sqrt(param.shape[1]))
+            if len(param.shape) == 1:
+                nn.init.uniform_(param, 0, 1)
+            else: 
+                nn.init.xavier_uniform_(param)
+        
+            
+def kaiming_init(model):
+    
+    for name, param in model.named_parameters():
+        if name.endswith(".bias"):
+            param.data.fill_(0)
+        else:
+            if len(param.shape) == 1:
+                nn.init.uniform_(param, 0, 1)
+            else: 
+                nn.init.kaiming_normal_(param, a=0, mode='fan_in', nonlinearity='leaky_relu')
 
             
-def xavier_init(model):
-    for name, param in model.named_parameters():
-        print("param name: {}".format(name))
-        print("param shape: {}".format(param.shape))
 
+
+def equi_var_init(model):
+    
+    for name, param in model.named_parameters():
         if name.endswith(".bias"):
             param.data.fill_(0)
         else:
-            bound = math.sqrt(6) / math.sqrt(param.shape[0] + param.shape[1])
-            param.data.uniform_(-bound, bound)
-
-
-def equal_var_init(model):
-    for name, param in model.named_parameters():
-        print("param name: {}".format(name))
-        print("param shape: {}".format(param.shape))
+            if len(param.shape) == 1:
+                nn.init.uniform_(param, 0, 1)
+            else: 
+                nn.init.equi_var_(param)
         
-        if name.endswith(".bias"):
-            param.data.fill_(0)
-        else:
-            param.data.normal_(std=1.0 / math.sqrt(param.shape[1]))

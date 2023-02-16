@@ -14,5 +14,5 @@
     "dropout": 0.0,
     "batch_size": 32,
     "batch_norm": false,
-    "reconstruction_loss": "huber"
+    "reconstruction_loss": "mse"
 }

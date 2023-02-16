@@ -207,9 +207,10 @@ def main():
         augmentation=False,
         standardize=False,
         lower_filter=False,
-        log_scale=True, 
-        min_max_scale=True,
-        scalar=True,
+        log_scale=False, 
+        min_max_scale=False,
+        wrangle_outliers=True,
+        scalar=False,
         device=device
         )
 

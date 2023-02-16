@@ -1,4 +1,5 @@
 import torch
+import math
 from torch import nn
 
 class UpConvBatch(nn.Module):
@@ -45,6 +46,8 @@ class UpConvBatch(nn.Module):
                 activation
             )
 
+
+
     def forward(self, x):
         return self.up(x)
 
@@ -68,6 +71,15 @@ class ConvBatch(nn.Module):
             #nn.ReLU(inplace=True)
             nn.LeakyReLU(0.2, inplace=False)
         )
+
+    def weights_init_normal(self):
+
+        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+
+        # Bias
+        fan_in = self.in_channels * self.kernel_size * self.kernel_size
+        bound = 1 / math.sqrt(fan_in)
+        nn.init.uniform_(self.bias, -bound, bound)
         
     def forward(self, x):
         return self.conv(x)

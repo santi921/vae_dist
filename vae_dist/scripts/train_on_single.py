@@ -36,7 +36,8 @@ def main():
         standardize=False,
         lower_filter=False,
         log_scale=True, 
-        min_max_scale=True,
+        min_max_scale=False,
+        wrangle_outliers=True,
         scalar=True,
         device=device
     )
@@ -77,6 +78,10 @@ def main():
     # load model to gpu
     #kaiming_init(model)
     model.to(device)
+    
+    xavier_init(model)
+    #visualize_weight_distribution(model)
+    #visualize_activations(model, print_variance=True)
     # check if there are any inf or nan values in the model
     is_nan = torch.stack([torch.isnan(p).any() for p in model.parameters()]).any()
     print("Model has inf or nan values: ", is_nan)

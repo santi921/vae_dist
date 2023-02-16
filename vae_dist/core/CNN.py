@@ -94,21 +94,21 @@ class CNNAutoencoderLightning(pl.LightningModule):
                 h_out = h
 
             self.list_enc_fully.append(torch.nn.Linear(h_in , h_out))
-            self.list_enc_fully.append(torch.nn.ReLU())
+            self.list_enc_fully.append(torch.nn.LeakyReLU())
             
             if self.hparams.dropout > 0:
                 self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
                 self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
 
             if ind == len(self.hparams.fully_connected_layers)-1:
-                self.list_dec_fully.append(torch.nn.ReLU())
+                self.list_dec_fully.append(torch.nn.LeakyReLU())
             else: 
-                self.list_dec_fully.append(torch.nn.ReLU())
+                self.list_dec_fully.append(torch.nn.LeakyReLU())
             
             self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
 
         self.list_enc_fully.append(torch.nn.Linear(self.hparams.fully_connected_layers[-1] , self.hparams.latent_dim))
-        self.list_enc_fully.append(torch.nn.ReLU())
+        self.list_enc_fully.append(torch.nn.LeakyReLU())
         self.list_dec_fully.append(torch.nn.Linear(self.hparams.latent_dim, self.hparams.fully_connected_layers[-1]))
 
         
@@ -297,8 +297,8 @@ class CNNAutoencoderLightning(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        #optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
-        optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        #optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, 
             mode='min', 
