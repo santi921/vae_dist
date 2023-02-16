@@ -16,11 +16,14 @@ class FieldDataset(torch.utils.data.Dataset):
             scalar=False,
             device='cpu', 
             mean_mag=None,
+            min_max_scale=False,
             st_mag=None):
         
         fields, shape, names = pull_fields(root, ret_names=True)
         data = fields.reshape([len(fields), 3, shape[0], shape[1], shape[2]])
-        # print if anything in data is nan or inf
+        self.mags = np.sqrt((data**2).sum(axis=1))
+        
+        
         
         if lower_filter:
             filter_mat = []
@@ -31,10 +34,14 @@ class FieldDataset(torch.utils.data.Dataset):
                     cutoff_high_percentile=False))
             filter_mat = np.array(filter_mat)
             data = filter_mat
-            #print("filter max of data: ", data.max())
-            
+
+
+        if scalar:
+            data = self.mags.reshape([len(fields), 1, shape[0], shape[1], shape[2]])
+    
+
         if log_scale:
-            lower_filter = True            
+            lower_filter = False            
             x_sign = np.sign(data)
             # getting absolute value of every element
             x_abs = np.abs(data)
@@ -48,7 +55,7 @@ class FieldDataset(torch.utils.data.Dataset):
         
         # get magnitude of vectors shaped [3, 21, 21, 21]
         # find index of max magnitude
-        max_mag_ind = np.unravel_index(self.mags.argmax(), self.mags.shape)
+        #max_mag_ind = np.unravel_index(self.mags.argmax(), self.mags.shape)
         # compute minimum vector magnitude
         self.min_mag = self.mags.min()
         self.max_mag = self.mags.max()
@@ -61,27 +68,19 @@ class FieldDataset(torch.utils.data.Dataset):
                 data = (data - self.mean_mag) / (self.st_mag + 1)            
             else: 
                 data = (data - mean_mag) / (st_mag + 1)    
+        
         if transform:
             transform_mat = []
             for i in range(data.shape[0]):
                 transform_mat.append(helmholtz_hodge_decomp_approx(data[i]))
             transform_mat = np.array(transform_mat)
             data = transform_mat
-        
-        if scalar:
-            data = self.mags.reshape([len(fields), 1, shape[0], shape[1], shape[2]])
-
-        #if lower_filter:
-        #    filter_mat = []
-        #    for i in range(data.shape[0]):
-        #        filter_mat.append(filter(
-        #            data[i], 
-        #            cutoff_low_percentile=50, 
-        #            cutoff_high_percentile=False))
-        #    filter_mat = np.array(filter_mat)   
-        #    data = filter_mat
-
-            #print("filter max of data: ", data.max())
+    
+        if min_max_scale:
+            self.max = data.max()
+            self.min = data.min()
+            ## min max scale 
+            data = (data - self.min) / (self.max - self.min)
         
         self.max = data.max()
         self.min = data.min()
@@ -89,10 +88,22 @@ class FieldDataset(torch.utils.data.Dataset):
         #data = (data - self.min) / (self.max - self.min)
         
         # print largest and smallest values
+        # print preprocessing info
+        print("Data shape: ", data.shape)
+        print("Data type: ", data.dtype)
+        print("Mean value in dataset: ", data.mean())
+        print("Standard deviation in dataset: ", data.std())
+        print("Helmholtz-Hodge decomposition applied: ", transform)
+        print("Lower filter applied: ", lower_filter)
+        print("Log scale applied: ", log_scale)
+        print("Standardization applied: ", standardize)
+        print("Min max scaling applied: ", min_max_scale)
+        
         print("Largest value in dataset: ", data.max())
         print("Smallest value in dataset: ", data.min())
         print("Nan values in dataset: ", np.isnan(data).any())
-        print("Inf values in dataset: ", np.isinf(data).any())        
+        print("Inf values in dataset: ", np.isinf(data).any()) 
+
         self.shape = shape
         self.scalar = scalar
         self.data = data
@@ -102,6 +113,7 @@ class FieldDataset(torch.utils.data.Dataset):
         self.device = device
         self.standardize = standardize
         self.names = names
+        self.min_max_scale = min_max_scale
         
         
     def __len__(self):

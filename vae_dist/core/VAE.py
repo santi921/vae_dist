@@ -198,8 +198,8 @@ class baselineVAEAutoencoder(pl.LightningModule):
 
         #self.decoder.to(self.device)
         #self.encoder.to(self.device)
-        summary(self.encoder_conv, (3, 21, 21, 21), device="cpu")
-        summary(self.encoder, (3, 21, 21, 21), device="cpu")
+        summary(self.encoder_conv, (self.hparams.channels[0], 21, 21, 21), device="cpu")
+        summary(self.encoder, (self.hparams.channels[0], 21, 21, 21), device="cpu")
         summary(self.decoder_dense, tuple([latent_dim]), device="cpu")
         summary(self.decoder_conv, (channels[-1], inner_dim, inner_dim, inner_dim), device="cpu")
 
@@ -289,15 +289,16 @@ class baselineVAEAutoencoder(pl.LightningModule):
 
         elif self.hparams.reconstruction_loss == "huber":
             recon_loss = F.huber_loss(x_hat, x, reduction='mean')
+        
         elif self.hparams.reconstruction_loss == 'many_step_inverse_huber':
             recon_loss = stepwise_inverse_huber_loss(x_hat, x, reduction='mean')
+        
         elif self.hparams.reconstruction_loss == 'inverse_huber': 
             recon_loss = inverse_huber(x_hat, x, reduction='mean')
         #recon_l_1_2 = torch.sqrt(recon_loss)
-        kl = torch.distributions.kl_divergence(q, p).mean()
+        kl = torch.distributions.kl_divergence(q, p)#.mean()
         elbo = (kl + self.hparams.beta * recon_loss)
         return elbo, kl, recon_loss
-
 
 
     def test_step(self, batch, batch_idx):
@@ -382,8 +383,8 @@ class baselineVAEAutoencoder(pl.LightningModule):
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, 
             mode='min', 
-            factor=0.1, 
-            patience=10, 
+            factor=0.5, 
+            patience=20, 
             verbose=True, 
             threshold=0.0001, 
             threshold_mode='rel', 
@@ -393,11 +394,15 @@ class baselineVAEAutoencoder(pl.LightningModule):
             )
         lr_scheduler = {
             "scheduler": scheduler, 
-            "monitor": "elbo_val"
+            "monitor": "val_loss"
             }
         return [optimizer], [lr_scheduler]
 
 
     def load_model(self, path):
+
         self.model.load_state_dict(torch.load(path, map_location='cuda:0'), strict=False)
         print('Model Created!')
+
+
+

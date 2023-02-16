@@ -1,9 +1,11 @@
 import argparse, json, wandb                                         
 import torch                                                      
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import LearningRateMonitor
+from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping
 from vae_dist.dataset.dataset import FieldDataset
-from vae_dist.core.training_utils import construct_model
+from vae_dist.core.training_utils import construct_model, LogParameters
+from vae_dist.core.intializers import *
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 def main():              
 
@@ -31,9 +33,10 @@ def main():
         root, 
         transform=False, 
         augmentation=False,
-        standardize=True,
-        lower_filter=True,
+        standardize=False,
+        lower_filter=False,
         log_scale=True, 
+        min_max_scale=True,
         scalar=True,
         device=device
     )
@@ -72,6 +75,7 @@ def main():
     wandb.config.update(options)
     
     # load model to gpu
+    #kaiming_init(model)
     model.to(device)
     # check if there are any inf or nan values in the model
     is_nan = torch.stack([torch.isnan(p).any() for p in model.parameters()]).any()
@@ -87,28 +91,51 @@ def main():
     )
 
     lr_monitor = LearningRateMonitor(logging_interval='step')
+    # create early stopping callback
+    early_stop_callback = EarlyStopping(
+        monitor='val_loss',
+        min_delta=0.00,
+        patience=200,
+        verbose=False,
+        mode='min'
+    )
+    log_parameters = LogParameters()
+
+    logger_tb = TensorBoardLogger(log_save_dir, name="test_logs")
+    logger_wb = WandbLogger(project="cnn_dist_single", name="test_logs")
+
     trainer = pl.Trainer(
         max_epochs=epochs, 
         accelerator='gpu', 
         devices = [0],
         accumulate_grad_batches=1, 
         enable_progress_bar=True,
-        #gradient_clip_val=1.0,
-        callbacks=[
-            lr_monitor],
+        gradient_clip_val=1.0,
+        callbacks=[early_stop_callback,  
+            lr_monitor, 
+            log_parameters],
         enable_checkpointing=True,
-        default_root_dir=log_save_dir
+        default_root_dir=log_save_dir,
+        logger=[logger_tb, logger_wb],
     )
-
+    
     trainer.fit(
         model, 
         dataset_loader_full, 
         dataset_loader_full
         )
 
+
     model.eval()
     # save state dict
     torch.save(model.state_dict(), log_save_dir + "/model_single_datapoint.ckpt")
     run.finish()
+
+
+def custom_histogram_adder(self):
+    for name, param in self.named_parameters():
+        self.logger.experiment.add_histogram(name, param, self.current_epoch)
+        self.logger.experiment.add_histogram(f'{name}.grad', param.grad, self.current_epoch)
+
 
 main()

@@ -106,7 +106,7 @@ class R3CNN(pl.LightningModule):
                 )
             )
             #self.encoder_conv_list.append(nn.IIDBatchNorm3d(out_type))
-            self.encoder_conv_list.append(nn.ReLU(out_type, inplace=True))  
+            self.encoder_conv_list.append(nn.ReLU(out_type, inplace=False))  
 
             output_padding = 0
             if inner_dim%2 == 1 and ind == len(self.hparams.channels)-1:
@@ -138,7 +138,7 @@ class R3CNN(pl.LightningModule):
             if ind == 0:
                 self.decoder_conv_list.append(nn.IdentityModule(in_type))
             else: 
-                self.decoder_conv_list.append(nn.ReLU(in_type, inplace=True))
+                self.decoder_conv_list.append(nn.ReLU(in_type, inplace=False))
             #self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type))
             self.decoder_conv_list.append(nn.R3ConvTransposed(
                 out_type, 

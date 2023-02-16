@@ -20,12 +20,14 @@ class UpConvBatch(nn.Module):
                     padding_mode = padding_mode, 
                     output_padding=output_padding
                 ),
+                nn.BatchNorm3d(out_channels),
                 activation
             )
 
         else: 
-            activation = nn.ReLU()
-        
+            activation = nn.LeakyReLU(0.2, inplace=False)
+
+
             self.up = nn.Sequential(
                 nn.ConvTranspose3d(
                     in_channels = in_channels,
@@ -39,7 +41,7 @@ class UpConvBatch(nn.Module):
                     padding_mode = padding_mode, 
                     output_padding=output_padding
                 ),
-                #nn.BatchNorm3d(out_channels),
+                nn.BatchNorm3d(out_channels),
                 activation
             )
 
@@ -62,8 +64,9 @@ class ConvBatch(nn.Module):
                 bias = bias,
                 padding_mode = padding_mode
             ),
-            #nn.BatchNorm3d(out_channels),
-            nn.ReLU(inplace=True)
+            nn.BatchNorm3d(out_channels),
+            #nn.ReLU(inplace=True)
+            nn.LeakyReLU(0.2, inplace=False)
         )
         
     def forward(self, x):
@@ -85,7 +88,7 @@ class ResNetBatch(nn.Module):
             padding_mode = padding_mode
         )
         batch1 = nn.BatchNorm3d(out_channels)
-        relu1 = nn.ReLU(inplace=True)
+        relu1 = nn.ReLU(inplace=False)
         
         conv_only2 = nn.Conv3d(
             in_channels = out_channels,
@@ -99,7 +102,7 @@ class ResNetBatch(nn.Module):
             padding_mode = padding_mode
         )
         batch2 = nn.BatchNorm3d(out_channels)
-        relu2 = nn.ReLU(inplace=True)
+        nn.LeakyReLU(0.2, inplace=False)
 
         layers = [conv_only1, batch1, relu1, conv_only2, batch2, relu2]
         self.conv = nn.Sequential(*layers)

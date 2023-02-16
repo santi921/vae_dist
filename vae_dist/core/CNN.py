@@ -1,11 +1,12 @@
 import torch.nn as nn
 import torch, wandb
 #from torchConvNd import ConvNd, ConvTransposeNd
-from torchsummary import summary
-from vae_dist.core.layers import UpConvBatch, ConvBatch, ResNetBatch
 import pytorch_lightning as pl
-from vae_dist.core.losses import stepwise_inverse_huber_loss, inverse_huber
+from torchsummary import summary
 from torch.nn import functional as F
+
+from vae_dist.core.layers import UpConvBatch, ConvBatch, ResNetBatch
+from vae_dist.core.losses import stepwise_inverse_huber_loss, inverse_huber
 class CNNAutoencoderLightning(pl.LightningModule):
     def __init__(
         self,
@@ -198,7 +199,10 @@ class CNNAutoencoderLightning(pl.LightningModule):
         summary(self.encoder, (self.hparams.channels[0], 21, 21, 21), device="cpu")
         summary(self.decoder_dense, tuple([latent_dim]), device="cpu")
         summary(self.decoder_conv, (channels[-1], inner_dim, inner_dim, inner_dim), device="cpu")
-        
+        sample = torch.randn(1, self.hparams.channels[0], 21, 21, 21)
+        #print(self.logger)
+        #tb_logger = self.logger.experiment
+        #tb_logger.experiment.add_graph(self.encoder_conv, sample)
 
     def forward(self, x):
         x = self.encoder(x)
@@ -221,15 +225,15 @@ class CNNAutoencoderLightning(pl.LightningModule):
     def loss_function(self, x, x_hat): 
         
         if self.hparams.reconstruction_loss == "mse":
-            recon_loss = F.mse_loss(x_hat, x, reduction='sum')
+            recon_loss = F.mse_loss(x_hat, x, reduction='mean')
         elif self.hparams.reconstruction_loss == "l1":
-            recon_loss = F.l1_loss(x_hat, x, reduction='sum')
+            recon_loss = F.l1_loss(x_hat, x, reduction='mean')
         elif self.hparams.reconstruction_loss == "huber":
-            recon_loss = F.huber_loss(x_hat, x, reduction='sum')
+            recon_loss = F.huber_loss(x_hat, x, reduction='mean')
         elif self.hparams.reconstruction_loss == 'many_step_inverse_huber':
             recon_loss = stepwise_inverse_huber_loss(x_hat, x, reduction='sum')
         elif self.hparams.reconstruction_loss == 'inverse_huber': 
-            recon_loss = inverse_huber(x_hat, x, reduction='sum')
+            recon_loss = inverse_huber(x_hat, x, reduction='mean')
         
         return recon_loss
     
@@ -238,9 +242,9 @@ class CNNAutoencoderLightning(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         rmse_loss = torch.sqrt(loss)
-        mape = torch.mean(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
-        medpe = torch.median(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
-        
+        denom = (torch.abs(batch) + torch.abs(predict)) / 2
+        mape = torch.mean(torch.abs((predict - batch) / denom))
+        medpe = torch.median(torch.abs((predict - batch) / denom))
         out_dict = {
             'train_loss': loss, 
             'rmse_train': rmse_loss,
@@ -253,12 +257,15 @@ class CNNAutoencoderLightning(pl.LightningModule):
         return loss
 
 
+
     def test_step(self, batch, batch_idx):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         rmse_loss = torch.sqrt(loss)
-        mape = torch.mean(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
-        medpe = torch.median(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
+        denom = (torch.abs(batch) + torch.abs(predict)) / 2
+        mape = torch.mean(torch.abs((predict - batch) / denom))
+        medpe = torch.median(torch.abs((predict - batch) / denom))
+
         out_dict = {
             'test_loss': loss, 
             'rmse_test': rmse_loss,
@@ -274,7 +281,7 @@ class CNNAutoencoderLightning(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         rmse_loss = torch.sqrt(loss)
-        denom = (torch.abs(batch) + torch.abs(predict)) / 2 + 1e-8
+        denom = (torch.abs(batch) + torch.abs(predict)) / 2
         mape = torch.mean(torch.abs((predict - batch) / denom))
         medpe = torch.median(torch.abs((predict - batch) / denom))
         
@@ -290,12 +297,13 @@ class CNNAutoencoderLightning(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        #optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, 
             mode='min', 
             factor=0.5, 
-            patience=10, 
+            patience=20, 
             verbose=True, 
             threshold=0.0001, 
             threshold_mode='rel', 
