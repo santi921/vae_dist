@@ -11,7 +11,6 @@ def main():
 
     # create argparser that just takes a string for model type 
     # and a string for the path to the data
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='escnn')
     parser.add_argument('--epochs', type=int, default=1000)
@@ -34,11 +33,11 @@ def main():
         transform=False, 
         augmentation=False,
         standardize=False,
-        lower_filter=False,
+        lower_filter=True,
         log_scale=True, 
         min_max_scale=False,
-        wrangle_outliers=True,
-        scalar=True,
+        wrangle_outliers=False,
+        scalar=False,
         device=device
     )
 
@@ -135,12 +134,5 @@ def main():
     # save state dict
     torch.save(model.state_dict(), log_save_dir + "/model_single_datapoint.ckpt")
     run.finish()
-
-
-def custom_histogram_adder(self):
-    for name, param in self.named_parameters():
-        self.logger.experiment.add_histogram(name, param, self.current_epoch)
-        self.logger.experiment.add_histogram(f'{name}.grad', param.grad, self.current_epoch)
-
 
 main()

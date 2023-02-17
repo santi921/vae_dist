@@ -10,7 +10,7 @@ def xavier_init(model):
             if len(param.shape) == 1:
                 nn.init.uniform_(param, 0, 1)
             else: 
-                nn.init.xavier_uniform_(param)
+                nn.init.xavier_normal_(param)
         
             
 def kaiming_init(model):
@@ -36,5 +36,5 @@ def equi_var_init(model):
             if len(param.shape) == 1:
                 nn.init.uniform_(param, 0, 1)
             else: 
-                nn.init.equi_var_(param)
+                nn.init.normal_(param)
         

@@ -225,15 +225,15 @@ class CNNAutoencoderLightning(pl.LightningModule):
     def loss_function(self, x, x_hat): 
         
         if self.hparams.reconstruction_loss == "mse":
-            recon_loss = F.mse_loss(x_hat, x, reduction='mean')
+            recon_loss = F.l2_loss(x_hat, x, reduction='sum')
         elif self.hparams.reconstruction_loss == "l1":
-            recon_loss = F.l1_loss(x_hat, x, reduction='mean')
+            recon_loss = F.l1_loss(x_hat, x, reduction='sum')
         elif self.hparams.reconstruction_loss == "huber":
-            recon_loss = F.huber_loss(x_hat, x, reduction='mean')
+            recon_loss = F.huber_loss(x_hat, x, reduction='sum')
         elif self.hparams.reconstruction_loss == 'many_step_inverse_huber':
             recon_loss = stepwise_inverse_huber_loss(x_hat, x, reduction='sum')
         elif self.hparams.reconstruction_loss == 'inverse_huber': 
-            recon_loss = inverse_huber(x_hat, x, reduction='mean')
+            recon_loss = inverse_huber(x_hat, x, reduction='sum')
         
         return recon_loss
     
@@ -297,8 +297,8 @@ class CNNAutoencoderLightning(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
-        #optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
+        #optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, 
             mode='min', 

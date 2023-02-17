@@ -42,7 +42,7 @@ def plot_sfield(
         cmax=cmax,
         cmin=cmin,
         colorbar=colorbar,
-        colorscale='greys',
+        colorscale='PuBu',
         name='{}'.format(z_ind)
     )
     return surface
@@ -190,7 +190,7 @@ def main():
 
 
     model_list = []
-    model_names = "model_single_datapoint.ckpt"
+    model_names = "model_single_datapoint_vector.ckpt"
 
     for model_type in ['auto']:
         options = json.load(open('./options/options_{}_default.json'.format(model_type)))
@@ -199,7 +199,7 @@ def main():
         model_temp.to(device)
         model_list.append(deepcopy(model_temp))
 
-    root = '../../data/single_field/'
+    root = '../../data/augment_test/'
 
     dataset_single = FieldDataset(
         root, 
@@ -207,7 +207,7 @@ def main():
         augmentation=False,
         standardize=False,
         lower_filter=False,
-        log_scale=False, 
+        log_scale=True, 
         min_max_scale=False,
         wrangle_outliers=True,
         scalar=False,

@@ -6,8 +6,8 @@ class UpConvBatch(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias, padding_mode, output_padding, output_layer=False):
         super(UpConvBatch, self).__init__()
         if output_layer:
+            #activation = nn.Sigmoid()
             activation = nn.Identity()
-
             self.up = nn.Sequential(
                 nn.ConvTranspose3d(
                     in_channels = in_channels,
