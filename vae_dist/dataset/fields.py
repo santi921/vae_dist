@@ -1,37 +1,52 @@
 import os 
 import numpy as np 
 
-def filter(mat, cutoff_low_percentile = 50, cutoff_high_percentile=False):
+def filter(mat, cutoff_low_percentile = 50, cutoff_high_percentile=False, dim = 3):
     # mat is 5D numpy array of shape (1, 3, x, y, z) where x, y, z are the number of steps in each direction and 3 is the number of components
-    u = mat[0,0,:,:,:].reshape(-1)
-    v = mat[0,1,:,:,:].reshape(-1)
-    w = mat[0,2,:,:,:].reshape(-1)
+    # throw assertion error if dim is not 1 or 3
+    assert dim == 1 or dim == 3, "Dimension must be 1 or 3"
 
-    component_distro = np.sqrt((mat**2).sum(axis=1))
-    cutoff_low = np.percentile(component_distro, cutoff_low_percentile)
-    cutoff_high = np.percentile(component_distro, cutoff_high_percentile)
+    if dim == 3:
+        u = mat[0,0,:,:,:].reshape(-1)
+        v = mat[0,1,:,:,:].reshape(-1)
+        w = mat[0,2,:,:,:].reshape(-1)
+
+        component_distro = np.sqrt((mat**2).sum(axis=1))
+        cutoff_low = np.percentile(component_distro, cutoff_low_percentile)
+        cutoff_high = np.percentile(component_distro, cutoff_high_percentile)
 
 
-    for ind, i in enumerate(component_distro.flatten()): 
-        if (i < cutoff_low):
-            u[ind], v[ind], w[ind] = 0,0,0  
+        for ind, i in enumerate(component_distro.flatten()): 
+            if (i < cutoff_low):
+                u[ind], v[ind], w[ind] = 0,0,0  
+            
+            if(cutoff_high_percentile):
+                if (i > cutoff_high):
+                    u[ind], v[ind], w[ind] = 0,0,0
         
-        if(cutoff_high_percentile):
-            if (i > cutoff_high):
-                u[ind], v[ind], w[ind] = 0,0,0
+        u = np.around(u, decimals=2)
+        v = np.around(v, decimals=2)
+        w = np.around(w, decimals=2)
+        new_mat = np.zeros(mat.shape)
+        new_mat[0,0,:,:,:] = u.reshape(mat.shape[2], mat.shape[3], mat.shape[4])
+        new_mat[0,1,:,:,:] = v.reshape(mat.shape[2], mat.shape[3], mat.shape[4])
+        new_mat[0,2,:,:,:] = w.reshape(mat.shape[2], mat.shape[3], mat.shape[4])
     
-    u = np.around(u, decimals=2)
-    v = np.around(v, decimals=2)
-    w = np.around(w, decimals=2)
-
-    # put back into matrix form 
-    new_mat = np.zeros(mat.shape)
-    new_mat[0,0,:,:,:] = u.reshape(mat.shape[2], mat.shape[3], mat.shape[4])
-    new_mat[0,1,:,:,:] = v.reshape(mat.shape[2], mat.shape[3], mat.shape[4])
-    new_mat[0,2,:,:,:] = w.reshape(mat.shape[2], mat.shape[3], mat.shape[4])
-    #new_mat[:,:,:,0] = u.reshape(mat.shape[1], mat.shape[1], mat.shape[2])
-    #new_mat[:,:,:,1] = v.reshape(mat.shape[0], mat.shape[1], mat.shape[2])
-    #new_mat[:,:,:,2] = w.reshape(mat.shape[0], mat.shape[1], mat.shape[2])
+    if dim == 1: 
+        mag = mat[0,0,:,:,:].reshape(-1)
+        component_distro = np.sqrt((mat**2).sum(axis=1))
+        cutoff_low = np.percentile(component_distro, cutoff_low_percentile)
+        cutoff_high = np.percentile(component_distro, cutoff_high_percentile)
+        # filter out 
+        for ind, i in enumerate(component_distro.flatten()):
+            if (i < cutoff_low):
+                mag[ind] = 0
+            if(cutoff_high_percentile):
+                if (i > cutoff_high):
+                    mag[ind] = 0
+        # put back into matrix form 
+        new_mat = np.zeros(mat.shape)
+        new_mat[0,0,:,:,:] = mag.reshape(mat.shape[2], mat.shape[3], mat.shape[4])
 
     return new_mat
 

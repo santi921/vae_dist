@@ -50,10 +50,10 @@ def main():
         log_save_dir = "./log_version_esvae_1/"
         model = construct_model("esvae", options)
 
-    elif model_select == 'auto':
+    elif model_select == 'cnn':
         options = json.load(open('./options/options_cnn_default.json'))
-        log_save_dir = "./log_version_auto_1/"
-        model = construct_model("auto", options)
+        log_save_dir = "./log_version_cnn_1/"
+        model = construct_model("cnn", options)
 
     elif model_select == 'vae':
         options = json.load(open('./options/options_vae_default.json'))

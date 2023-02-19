@@ -25,11 +25,11 @@ class FieldDataset(torch.utils.data.Dataset):
         data = fields.reshape([len(fields), 3, shape[0], shape[1], shape[2]])
         self.dataraw = deepcopy(data)
         self.mags = np.sqrt((data**2).sum(axis=1))
-
+        dim = 3
 
         if scalar:
             data = self.mags.reshape([len(fields), 1, shape[0], shape[1], shape[2]])
-        
+            dim = 1
             
         if log_scale:
 
@@ -40,6 +40,7 @@ class FieldDataset(torch.utils.data.Dataset):
             else: 
                 # get magnitude of vector field
                 mags = np.sqrt((data**2).sum(axis=1))
+                mags = mags.reshape([len(fields), 1, shape[0], shape[1], shape[2]])
                 mags_log1p = np.log1p(mags)
                 # get ratio magnitude to mags_log1p
                 ratio = mags_log1p / mags
@@ -70,11 +71,13 @@ class FieldDataset(torch.utils.data.Dataset):
             
             if scalar: 
                 data = outliers_filtered
+                
             else:
                 # get ratio between mags and outliers_filtered
                 ratio = outliers_filtered/mags
                 # multiply data by ratio
                 data = np.multiply(data, ratio)
+                
 
                 
         if standardize:
@@ -113,13 +116,14 @@ class FieldDataset(torch.utils.data.Dataset):
         if lower_filter:
             filter_mat = []
             shape = data.shape
-            print(shape)
+            
             for i in range(shape[0]):
                 filter_mat.append(
                     filter(
-                        data[i].reshape([1, 3, shape[2], shape[3], shape[4]]),
-                        cutoff_low_percentile=80, 
-                        cutoff_high_percentile=False).reshape([3, shape[2], shape[3], shape[4]]))
+                        data[i].reshape([1, dim, shape[2], shape[3], shape[4]]),
+                        cutoff_low_percentile=85, 
+                        cutoff_high_percentile=False,
+                        dim = dim).reshape([dim, shape[2], shape[3], shape[4]]))
             filter_mat = np.array(filter_mat)
             data = filter_mat
 

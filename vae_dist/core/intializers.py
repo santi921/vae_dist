@@ -4,7 +4,9 @@ from torch import nn
 def xavier_init(model):
     
     for name, param in model.named_parameters():
-        if name.endswith(".bias"):
+        if name.startswith("fc_mu") or name.startswith("fc_var"):
+            pass
+        elif name.endswith(".bias"):
             param.data.fill_(0)
         else:
             if len(param.shape) == 1:
@@ -16,7 +18,11 @@ def xavier_init(model):
 def kaiming_init(model):
     
     for name, param in model.named_parameters():
-        if name.endswith(".bias"):
+        print(name)
+
+        if name.startswith("fc_mu") or name.startswith("fc_var"):
+            pass
+        elif name.endswith(".bias"):
             param.data.fill_(0)
         else:
             if len(param.shape) == 1:
@@ -30,11 +36,18 @@ def kaiming_init(model):
 def equi_var_init(model):
     
     for name, param in model.named_parameters():
-        if name.endswith(".bias"):
+        print(name)
+        if name.startswith("fc_mu") or name.startswith("fc_var"):
+            pass
+
+        elif name.endswith(".bias"):
+            print("bias")
             param.data.fill_(0)
+
         else:
+            print("weight")
             if len(param.shape) == 1:
-                nn.init.uniform_(param, 0, 1)
+                nn.init.normal_(param, 0, 1)
             else: 
                 nn.init.normal_(param)
         

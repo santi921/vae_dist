@@ -6,9 +6,14 @@ from vae_dist.dataset.dataset import FieldDataset
 from vae_dist.core.training_utils import construct_model, LogParameters
 from vae_dist.core.intializers import *
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+from torch.multiprocessing import set_start_method
+try:
+     set_start_method('spawn')
+except RuntimeError:
+    pass
 
-def main():              
-
+if __name__ == '__main__':
+    torch.multiprocessing.freeze_support()
     # create argparser that just takes a string for model type 
     # and a string for the path to the data
     parser = argparse.ArgumentParser()
@@ -17,7 +22,7 @@ def main():
 
     args = parser.parse_args()
 
-    root = "../../data/single_field/"
+    root = "../../data/cpet_augmented/"
     epochs = args.epochs
     model_select = args.model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -52,10 +57,10 @@ def main():
         log_save_dir = "./log_version_esvae_1/"
         model = construct_model("esvae", options)
 
-    elif model_select == 'auto':
+    elif model_select == 'cnn':
         options = json.load(open('./options/options_cnn_default.json'))
         log_save_dir = "./log_version_auto_1/"
-        model = construct_model("auto", options)
+        model = construct_model("cnn", options)
 
     elif model_select == 'vae':
         options = json.load(open('./options/options_vae_default.json'))
@@ -65,7 +70,6 @@ def main():
     else: 
         # throw error
         print("Model not found")
-        return
     
     wandb.config.update({
         "model": model_select,
@@ -78,7 +82,7 @@ def main():
     #kaiming_init(model)
     model.to(device)
     
-    xavier_init(model)
+    kaiming_init(model)
     #visualize_weight_distribution(model)
     #visualize_activations(model, print_variance=True)
     # check if there are any inf or nan values in the model
@@ -89,7 +93,7 @@ def main():
     
     dataset_loader_full = torch.utils.data.DataLoader(
         dataset_vanilla, 
-        batch_size=1,
+        batch_size=32,
         shuffle=False,
         num_workers=0
     )
@@ -103,16 +107,16 @@ def main():
         verbose=False,
         mode='min'
     )
-    log_parameters = LogParameters()
 
+    log_parameters = LogParameters()
     logger_tb = TensorBoardLogger(log_save_dir, name="test_logs")
-    logger_wb = WandbLogger(project="cnn_dist_single", name="test_logs")
+    logger_wb = WandbLogger(project="{}_dist_single".format(model_select), name="test_logs")
 
     trainer = pl.Trainer(
         max_epochs=epochs, 
         accelerator='gpu', 
         devices = [0],
-        accumulate_grad_batches=1, 
+        accumulate_grad_batches=5, 
         enable_progress_bar=True,
         gradient_clip_val=1.0,
         callbacks=[early_stop_callback,  
@@ -121,6 +125,8 @@ def main():
         enable_checkpointing=True,
         default_root_dir=log_save_dir,
         logger=[logger_tb, logger_wb],
+        #pin_memory=True,
+        precision=16
     )
     
     trainer.fit(
@@ -135,4 +141,3 @@ def main():
     torch.save(model.state_dict(), log_save_dir + "/model_single_datapoint.ckpt")
     run.finish()
 
-main()

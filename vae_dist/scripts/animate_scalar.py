@@ -190,9 +190,9 @@ def main():
 
 
     model_list = []
-    model_names = "model_single_datapoint_vector.ckpt"
+    model_names = "model_single_datapoint.ckpt"
 
-    for model_type in ['auto']:
+    for model_type in ['cnn']:
         options = json.load(open('./options/options_{}_default.json'.format(model_type)))
         model_temp = construct_model(model_type, options)
         model_temp.load_model("./log_version_{}_1/{}".format(model_type, model_names))
@@ -206,10 +206,10 @@ def main():
         transform=False, 
         augmentation=False,
         standardize=False,
-        lower_filter=False,
+        lower_filter=True,
         log_scale=True, 
         min_max_scale=False,
-        wrangle_outliers=True,
+        wrangle_outliers=False,
         scalar=False,
         device=device
         )

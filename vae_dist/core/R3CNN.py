@@ -3,9 +3,10 @@ import torch, wandb
 import pytorch_lightning as pl
 
 from torchsummary import summary
-from torch.nn import MSELoss
+from torch.nn import functional as F
 
 from vae_dist.core.escnnlayers import R3Upsampling
+from vae_dist.core.losses import stepwise_inverse_huber_loss, inverse_huber
 
 class R3CNN(pl.LightningModule):
     def __init__(
@@ -20,6 +21,7 @@ class R3CNN(pl.LightningModule):
         kernel_size=5, 
         latent_dim=1, 
         max_pool=False, 
+        batch_norm=False,
         max_pool_kernel_size=2,
         max_pool_loc=[3],
         stride=[1],
@@ -39,12 +41,13 @@ class R3CNN(pl.LightningModule):
             'kernel_size': kernel_size,
             'channels': channels,
             'padding': 0,
-            'bias': False,
+            'bias': True,
             'stride': stride, 
             'learning_rate': learning_rate,
             'latent_dim': latent_dim,
             'group': group,
             'gspace': gspace,
+            'batch_norm': batch_norm,
             'fully_connected_layers': fully_connected_layers,
             'dropout': dropout,
             'max_pool': max_pool,
@@ -105,7 +108,10 @@ class R3CNN(pl.LightningModule):
                     bias=True,
                 )
             )
-            #self.encoder_conv_list.append(nn.IIDBatchNorm3d(out_type))
+            
+            if self.hparams.batch_norm:
+                self.encoder_conv_list.append(nn.IIDBatchNorm3d(out_type, affine=False))
+
             self.encoder_conv_list.append(nn.ReLU(out_type, inplace=False))  
 
             output_padding = 0
@@ -139,7 +145,10 @@ class R3CNN(pl.LightningModule):
                 self.decoder_conv_list.append(nn.IdentityModule(in_type))
             else: 
                 self.decoder_conv_list.append(nn.ReLU(in_type, inplace=False))
-            #self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type))
+            
+            if self.hparams.batch_norm:
+                self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type, affine=False))
+            
             self.decoder_conv_list.append(nn.R3ConvTransposed(
                 out_type, 
                 in_type, 
@@ -160,16 +169,23 @@ class R3CNN(pl.LightningModule):
                 h_out = h
 
             self.list_enc_fully.append(torch.nn.Linear(h_in , h_out))
-            self.list_enc_fully.append(torch.nn.ReLU())
-            
+            self.list_enc_fully.append(torch.nn.LeakyReLU())
+
+
+            if self.hparams.batch_norm:
+                self.list_enc_fully.append(torch.nn.BatchNorm1d(h_out))
+
             if self.hparams.dropout > 0:
                 self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
                 self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
 
+            if self.hparams.batch_norm:
+                self.list_dec_fully.append(torch.nn.BatchNorm1d(h_in))
+
             if ind == len(self.hparams.fully_connected_layers)-1:
                 self.list_dec_fully.append(torch.nn.LeakyReLU())
             else: 
-                self.list_dec_fully.append(torch.nn.ReLU())
+                self.list_dec_fully.append(torch.nn.LeakyReLU())
             
             self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
 
@@ -225,20 +241,33 @@ class R3CNN(pl.LightningModule):
 
 
     def loss_function(self, x, x_hat): 
-        return MSELoss()(x_hat, x).to(self.device)
+        
+        if self.hparams.reconstruction_loss == "mse":
+            recon_loss = F.mse_loss(x_hat, x, reduction='mean')
+        elif self.hparams.reconstruction_loss == "l1":
+            recon_loss = F.l1_loss(x_hat, x, reduction='mean')
+        elif self.hparams.reconstruction_loss == "huber":
+            recon_loss = F.huber_loss(x_hat, x, reduction='mean')
+        elif self.hparams.reconstruction_loss == 'many_step_inverse_huber':
+            recon_loss = stepwise_inverse_huber_loss(x_hat, x, reduction='mean')
+        elif self.hparams.reconstruction_loss == 'inverse_huber': 
+            recon_loss = inverse_huber(x_hat, x, reduction='mean')
+        
+        return recon_loss
+    
 
 
     def training_step(self, batch, batch_idx):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         rmse_loss = torch.sqrt(loss)
-        mape = torch.mean(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
-        medpe = torch.median(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
+        #mape = torch.mean(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
+        #medpe = torch.median(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
         out_dict = {
             "train_loss": loss,
             "rmse_train": rmse_loss,
-            "mape_train": mape,
-            "medpe_train": medpe
+            #"mape_train": mape,
+            #"medpe_train": medpe
             }     
         if self.hparams.log_wandb:wandb.log(out_dict)
         self.log_dict(out_dict)
@@ -250,12 +279,12 @@ class R3CNN(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         rmse_loss = torch.sqrt(loss)
-        mape = torch.mean(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
-        medpe = torch.median(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
+        #mape = torch.mean(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
+        #medpe = torch.median(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
         out_dict = {
             "test_loss": loss,
-            "test_mape": mape,
-            "mape_test": medpe,
+            #"test_mape": mape,
+            #"mape_test": medpe,
             "rmse_test": rmse_loss
         }
         if self.hparams.log_wandb:wandb.log(out_dict)
@@ -267,13 +296,13 @@ class R3CNN(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         rmse_loss = torch.sqrt(loss)
-        mape = torch.mean(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
-        medpe = torch.median(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
+        #mape = torch.mean(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
+        #medpe = torch.median(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
         out_dict = {
             "val_loss": loss,
             "rmse_val": rmse_loss,
-            "mape_val": mape, 
-            'medpe_val': medpe,
+            #"mape_val": mape, 
+            #'medpe_val': medpe,
 
         }
         if self.hparams.log_wandb:wandb.log(out_dict)

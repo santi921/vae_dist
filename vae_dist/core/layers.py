@@ -42,8 +42,8 @@ class UpConvBatch(nn.Module):
                     padding_mode = padding_mode, 
                     output_padding=output_padding
                 ),
-                nn.BatchNorm3d(out_channels),
-                activation
+                activation,
+                nn.BatchNorm3d(out_channels)
             )
 
 
@@ -67,9 +67,9 @@ class ConvBatch(nn.Module):
                 bias = bias,
                 padding_mode = padding_mode
             ),
-            nn.BatchNorm3d(out_channels),
             #nn.ReLU(inplace=True)
-            nn.LeakyReLU(0.2, inplace=False)
+            nn.LeakyReLU(0.2, inplace=False),
+            nn.BatchNorm3d(out_channels)
         )
 
     def weights_init_normal(self):

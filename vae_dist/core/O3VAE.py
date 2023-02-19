@@ -21,9 +21,11 @@ class R3VAE(pl.LightningModule):
         kernel_size=5, 
         latent_dim=1, 
         beta = 1.0,
+        batch_norm=False,
         max_pool=False, 
         max_pool_kernel_size=2,
         max_pool_loc=[3],
+        bias = True, 
         stride=[1],
         fully_connected_layers=[64, 64, 64],
         log_wandb=False,
@@ -41,7 +43,7 @@ class R3VAE(pl.LightningModule):
             'kernel_size': kernel_size,
             'channels': channels,
             'padding': 0,
-            'bias': False,
+            'bias': bias,
             'stride': stride, 
             'learning_rate': learning_rate,
             'latent_dim': latent_dim,
@@ -49,6 +51,7 @@ class R3VAE(pl.LightningModule):
             'gspace': gspace,
             'fully_connected_layers': fully_connected_layers,
             'dropout': dropout,
+            'batch_norm': batch_norm,
             'max_pool': max_pool,
             'max_pool_kernel_size': max_pool_kernel_size,
             'max_pool_loc': max_pool_loc,
@@ -107,8 +110,11 @@ class R3VAE(pl.LightningModule):
                     bias=True,
                 )
             )
-            #self.encoder_conv_list.append(nn.IIDBatchNorm3d(out_type))
+            if self.hparams.batch_norm:
+                self.encoder_conv_list.append(nn.IIDBatchNorm3d(out_type, affine=True))
+
             self.encoder_conv_list.append(nn.ReLU(out_type, inplace=False))  
+    
 
             output_padding = 0
             if inner_dim%2 == 1 and ind == len(self.hparams.channels)-1:
@@ -135,13 +141,16 @@ class R3VAE(pl.LightningModule):
 
             if dropout > 0:
                 self.decoder_conv_list.append(nn.PointwiseDropout(in_type, p=dropout))
-
+            
             # decoder
             if ind == 0:
                 self.decoder_conv_list.append(nn.IdentityModule(in_type))
             else: 
                 self.decoder_conv_list.append(nn.ReLU(in_type, inplace=False))
-            #self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type))
+            
+            if self.hparams.batch_norm:
+                self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type, affine=True))
+            
             self.decoder_conv_list.append(nn.R3ConvTransposed(
                 out_type, 
                 in_type, 
@@ -162,16 +171,22 @@ class R3VAE(pl.LightningModule):
                 h_out = h
 
             self.list_enc_fully.append(torch.nn.Linear(h_in , h_out))
-            self.list_enc_fully.append(torch.nn.ReLU())
+            self.list_enc_fully.append(torch.nn.LeakyReLU())
             
+            if self.hparams.batch_norm:
+                self.list_enc_fully.append(torch.nn.BatchNorm1d(h_out))
+
             if self.hparams.dropout > 0:
                 self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
                 self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
 
+            if self.hparams.batch_norm:
+                self.list_dec_fully.append(torch.nn.BatchNorm1d(h_in))
+
             if ind == len(self.hparams.fully_connected_layers)-1:
                 self.list_dec_fully.append(torch.nn.LeakyReLU())
             else: 
-                self.list_dec_fully.append(torch.nn.ReLU())
+                self.list_dec_fully.append(torch.nn.LeakyReLU())
             
             self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
 
@@ -180,6 +195,7 @@ class R3VAE(pl.LightningModule):
         self.fc_var = torch.nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim)
         h_out = self.hparams.latent_dim
         torch.nn.init.zeros_(self.fc_var.bias)
+        torch.nn.init.zeros_(self.fc_mu.bias)
         self.list_dec_fully.append(torch.nn.Linear(self.hparams.latent_dim, self.hparams.fully_connected_layers[-1]))
 
         # reverse the list
@@ -261,16 +277,11 @@ class R3VAE(pl.LightningModule):
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
         rmse = torch.sqrt(recon_loss)
-        mape = torch.mean(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
-        medpe = torch.median(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
         out_dict = {
             'elbo_train': elbo,
             'kl_train': kl,
-            'recon_loss_train': recon_loss,
             'rmse_train': rmse,
-            'train_loss': elbo,
-            'mape_train': mape, 
-            "training_median_percent_error": medpe
+            'train_loss': elbo
             }     
         if self.hparams.log_wandb:wandb.log(out_dict)
         self.log_dict(out_dict)
@@ -289,16 +300,12 @@ class R3VAE(pl.LightningModule):
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
         rmse = torch.sqrt(recon_loss)
-        mape = torch.mean(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
-        medpe = torch.median(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
         out_dict = {
             'elbo_test': elbo,
             'kl_test': kl,
             'recon_loss_test': recon_loss,
             'test_loss': elbo,
             'rmse_test': rmse,
-            'test_mape': mape,
-            "training_median_percent_error": medpe
             }     
         if self.hparams.log_wandb:wandb.log(out_dict)
         self.log_dict(out_dict)
@@ -318,16 +325,13 @@ class R3VAE(pl.LightningModule):
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
         rmse = torch.sqrt(recon_loss)
-        mape = torch.mean(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
-        medpe = torch.median(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
+        #mape = torch.mean(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
+        #medpe = torch.median(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
         out_dict = {
             'elbo_val': elbo,
             'kl_val': kl,
-            'recon_loss_val': recon_loss,
             'rmse_val': rmse,
             'val_loss': elbo,
-            'mape_val': mape,
-            "training_median_percent_error": medpe
             }     
 
         if self.hparams.log_wandb:wandb.log(out_dict)

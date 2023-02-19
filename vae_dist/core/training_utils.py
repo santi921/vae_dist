@@ -72,7 +72,7 @@ def construct_model(model, options):
         feat_type_out = nn.FieldType(gspace,  input_out_reps)  
         model = R3CNN(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)   
 
-    elif model == 'auto':
+    elif model == 'cnn':
         model = CNNAutoencoderLightning(**options)
 
     elif model == 'vae':
@@ -190,10 +190,10 @@ def hyperparameter_dicts():
         "bias": {"values": [True]},
         "epochs": {"values": [100, 500, 1000]},
         "latent_dim": {"values": [2, 5, 10, 25]},
-        "fully_connected_layers": {"values": [[100, 10], [100], [100, 50, 10], [50]]},
+        "fully_connected_layers": {"values": [[1300, 10], [100], [100, 50, 10], [50]]},
         "batch_norm": {"values": [True, False]},
         "dropout": {'values': [0.0, 0.1, 0.25, 0.4]},
-        "learning_rate": {"min": 0.0001, "max": 0.01, "distribution": "log_uniform_values"},   
+        "learning_rate": {"min": 0.05, "max": 0.5, "distribution": "log_uniform_values"},   
         "reconstruction_loss": {"values": ["mse", "l1", "huber", "inverse_huber", "many_step_inverse_huber"]},
 
 
@@ -230,7 +230,7 @@ def hyperparameter_dicts():
         "fully_connected_layers": {"values": [[100, 10], [100], [100, 50, 10], [50]]},
         "batch_norm": {"values": [True, False]},
         "dropout": {'values': [0.0, 0.1, 0.25, 0.4]},
-        "learning_rate": {"min": 0.0001, "max": 0.01, "distribution": "log_uniform_values"},   
+        "learning_rate": {"min": 0.05, "max": 0.5, "distribution": "log_uniform_values"},   
         "reconstruction_loss": {"values": ["mse", "l1", "huber", "inverse_huber", "many_step_inverse_huber"]},
     }
 
@@ -281,7 +281,7 @@ def hyperparameter_dicts():
         "fully_connected_layers": {"values": [[100, 10], [100], [100, 50, 10], [50]]},
         "batch_norm": {"values": [True, False]},
         "dropout": {'values': [0.0, 0.1, 0.25, 0.4]},
-        "learning_rate": {"min": 0.0001, "max": 0.01, "distribution": "log_uniform_values"},
+        "learning_rate": {"min": 0.05, "max": 0.5, "distribution": "log_uniform_values"},   
     }
 
     dict_auto = {
@@ -330,7 +330,7 @@ def hyperparameter_dicts():
         "fully_connected_layers": {"values": [[100, 10], [100], [100, 50, 10], [50]]},
         "batch_norm": {"values": [True, False]},
         "dropout": {'values': [0.0, 0.1, 0.25, 0.4]},
-        "learning_rate": {"min": 0.0001, "max": 0.01, "distribution": "log_uniform_values"},
+        "learning_rate": {"min": 0.05, "max": 0.5, "distribution": "log_uniform_values"},   
     }
 
     dict_ret['escnn'] = dict_escnn

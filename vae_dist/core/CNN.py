@@ -87,8 +87,10 @@ class CNNAutoencoderLightning(pl.LightningModule):
             if ind == 0:
                 self.list_dec_fully.append(torch.nn.Unflatten(1, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim)))        
                 self.list_enc_fully.append(torch.nn.Flatten())
+
                 h_in = self.hparams.channels[-1] * inner_dim * inner_dim * inner_dim
                 h_out = h
+
             else:
                 h_in = self.hparams.fully_connected_layers[ind-1]
                 h_out = h
@@ -96,9 +98,15 @@ class CNNAutoencoderLightning(pl.LightningModule):
             self.list_enc_fully.append(torch.nn.Linear(h_in , h_out))
             self.list_enc_fully.append(torch.nn.LeakyReLU())
             
+            if self.hparams.batch_norm and ind != 0:
+                self.list_enc_fully.append(torch.nn.BatchNorm1d(h_out))
+            
             if self.hparams.dropout > 0:
                 self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
                 self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
+
+            if self.hparams.batch_norm and ind != 0 :
+                self.list_dec_fully.append(torch.nn.BatchNorm1d(h_in))
 
             if ind == len(self.hparams.fully_connected_layers)-1:
                 self.list_dec_fully.append(torch.nn.LeakyReLU())
@@ -225,15 +233,15 @@ class CNNAutoencoderLightning(pl.LightningModule):
     def loss_function(self, x, x_hat): 
         
         if self.hparams.reconstruction_loss == "mse":
-            recon_loss = F.l2_loss(x_hat, x, reduction='sum')
+            recon_loss = F.mse_loss(x_hat, x, reduction='mean')
         elif self.hparams.reconstruction_loss == "l1":
-            recon_loss = F.l1_loss(x_hat, x, reduction='sum')
+            recon_loss = F.l1_loss(x_hat, x, reduction='mean')
         elif self.hparams.reconstruction_loss == "huber":
-            recon_loss = F.huber_loss(x_hat, x, reduction='sum')
+            recon_loss = F.huber_loss(x_hat, x, reduction='mean')
         elif self.hparams.reconstruction_loss == 'many_step_inverse_huber':
-            recon_loss = stepwise_inverse_huber_loss(x_hat, x, reduction='sum')
+            recon_loss = stepwise_inverse_huber_loss(x_hat, x, reduction='mean')
         elif self.hparams.reconstruction_loss == 'inverse_huber': 
-            recon_loss = inverse_huber(x_hat, x, reduction='sum')
+            recon_loss = inverse_huber(x_hat, x, reduction='mean')
         
         return recon_loss
     
@@ -244,18 +252,17 @@ class CNNAutoencoderLightning(pl.LightningModule):
         rmse_loss = torch.sqrt(loss)
         denom = (torch.abs(batch) + torch.abs(predict)) / 2
         mape = torch.mean(torch.abs((predict - batch) / denom))
-        medpe = torch.median(torch.abs((predict - batch) / denom))
+        #medpe = torch.median(torch.abs((predict - batch) / denom))
         out_dict = {
             'train_loss': loss, 
             'rmse_train': rmse_loss,
             'mape_train': mape,
-            'medpe_train': medpe
+            #'medpe_train': medpe
 
         }
         wandb.log(out_dict)
         self.log_dict(out_dict)
         return loss
-
 
 
     def test_step(self, batch, batch_idx):
@@ -264,13 +271,13 @@ class CNNAutoencoderLightning(pl.LightningModule):
         rmse_loss = torch.sqrt(loss)
         denom = (torch.abs(batch) + torch.abs(predict)) / 2
         mape = torch.mean(torch.abs((predict - batch) / denom))
-        medpe = torch.median(torch.abs((predict - batch) / denom))
+        #medpe = torch.median(torch.abs((predict - batch) / denom))
 
         out_dict = {
             'test_loss': loss, 
             'rmse_test': rmse_loss,
             'mape_test': mape,
-            'medpe_test': medpe
+            #'medpe_test': medpe
         }
         wandb.log(out_dict)
         self.log_dict(out_dict)
@@ -283,13 +290,13 @@ class CNNAutoencoderLightning(pl.LightningModule):
         rmse_loss = torch.sqrt(loss)
         denom = (torch.abs(batch) + torch.abs(predict)) / 2
         mape = torch.mean(torch.abs((predict - batch) / denom))
-        medpe = torch.median(torch.abs((predict - batch) / denom))
+        # medpe = torch.median(torch.abs((predict - batch) / denom))
         
         out_dict = {
             'val_loss': loss,
             'rmse_val': rmse_loss,
             'mape_val': mape,
-            'medpe_val': medpe
+            #'medpe_val': medpe
         }
         wandb.log(out_dict)
         self.log_dict(out_dict)

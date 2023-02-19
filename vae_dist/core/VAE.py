@@ -96,25 +96,33 @@ class baselineVAEAutoencoder(pl.LightningModule):
                 h_in = self.hparams.fully_connected_layers[ind-1]
                 h_out = h
 
+
             self.list_enc_fully.append(torch.nn.Linear(h_in , h_out))
-            self.list_enc_fully.append(torch.nn.ReLU())
-            
+            self.list_enc_fully.append(torch.nn.LeakyReLU())            
+
+            if self.hparams.batch_norm:
+                self.list_enc_fully.append(torch.nn.BatchNorm1d(h_out))
+
             if self.hparams.dropout > 0:
                 self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
                 self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
+            
+            if self.hparams.batch_norm:
+                self.list_dec_fully.append(torch.nn.BatchNorm1d(h_in))
 
             if ind == len(self.hparams.fully_connected_layers)-1:
-                self.list_dec_fully.append(torch.nn.Sigmoid())
+                self.list_dec_fully.append(torch.nn.LeakyReLU())
             else: 
-                self.list_dec_fully.append(torch.nn.ReLU())
+                self.list_dec_fully.append(torch.nn.LeakyReLU())
             
             self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
-
+            
 
         self.fc_mu = nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim)
         self.fc_var = nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim)
         h_out = self.hparams.latent_dim
         nn.init.zeros_(self.fc_var.bias)
+        nn.init.zeros_(self.fc_mu.bias)
         self.list_dec_fully.append(torch.nn.Linear(self.hparams.latent_dim, self.hparams.fully_connected_layers[-1]))
 
 
@@ -234,52 +242,6 @@ class baselineVAEAutoencoder(pl.LightningModule):
         return self.decoder(x)
 
 
-    def training_step(self, batch, batch_idx):
-        x = batch
-        # encode x to get the mu and variance parameters
-        mu, log_var = self.encode(x)
-        #print(x_encoded.shape)
-        #mu, log_var = self.fc_mu(x_encoded), self.fc_var(x_encoded)
-
-        # sample z from q
-        std = torch.exp(log_var / 2)
-        q = torch.distributions.Normal(mu, std)
-        z = q.rsample()
-
-        # decoded
-        x_hat = self.decoder(z)
-
-        # reconstruction loss
-        #recon_loss = self.gaussian_likelihood(x_hat, self.log_scale, x)
-        recon_loss = F.mse_loss(x_hat, x, reduction='mean')
-        rmse_loss = torch.sqrt(recon_loss)
-
-        # kl
-        p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
-        kl = torch.distributions.kl_divergence(q, p)
-        kl = kl.mean()
-        
-        # elbo
-        #print(kl.tolist(), recon_loss.tolist())
-        elbo = (kl + self.hparams.beta * recon_loss)
-        mape = torch.mean(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
-        medpe = torch.median(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
-        
-        out_dict = {
-            'elbo_train': elbo,
-            'kl_train': kl,
-            'recon_loss_train': recon_loss,
-            'rmse_train': rmse_loss,
-            'train_loss': elbo,
-            'mape_train': mape,
-            'medpe_train': medpe,
-        }
-
-        if self.hparams.log_wandb:wandb.log(out_dict)
-        self.log_dict(out_dict)
-        return elbo
-
-
     def loss_function(self, x, x_hat, q, p): 
         if self.hparams.reconstruction_loss == "mse":
             recon_loss = F.mse_loss(x_hat, x, reduction='mean')
@@ -296,9 +258,38 @@ class baselineVAEAutoencoder(pl.LightningModule):
         elif self.hparams.reconstruction_loss == 'inverse_huber': 
             recon_loss = inverse_huber(x_hat, x, reduction='mean')
         #recon_l_1_2 = torch.sqrt(recon_loss)
-        kl = torch.distributions.kl_divergence(q, p)#.mean()
+        kl = torch.distributions.kl_divergence(q, p).mean()
         elbo = (kl + self.hparams.beta * recon_loss)
+
         return elbo, kl, recon_loss
+    
+
+    def training_step(self, batch, batch_idx):
+        x = batch
+        x_encoded = self.encoder(x)
+        mu, log_var = self.fc_mu(x_encoded), self.fc_var(x_encoded)
+        
+        # sample z from q
+        std = torch.exp(log_var / 2)
+        q = torch.distributions.Normal(mu, std)
+        p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
+        z = q.rsample()
+        x_hat = self.decoder(z)
+        
+        # kl
+        elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
+        rmse_loss = torch.sqrt(torch.mean((x_hat - batch)**2))
+
+        out_dict = {
+            'elbo_train': elbo,
+            'kl_train': kl,
+            'rmse_train': rmse_loss,
+            'train_loss': elbo,
+        }
+
+        if self.hparams.log_wandb:wandb.log(out_dict)
+        self.log_dict(out_dict)
+        return elbo
 
 
     def test_step(self, batch, batch_idx):
@@ -309,25 +300,22 @@ class baselineVAEAutoencoder(pl.LightningModule):
         # sample z from q
         std = torch.exp(log_var / 2)
         q = torch.distributions.Normal(mu, std)
-        z = q.rsample()
-
-        # decoded
-        x_hat = self.decoder(z)
-        # kl
         p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
+        z = q.rsample()
+        x_hat = self.decoder(z)
+
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
-        elbo = (kl + self.hparams.beta * recon_loss)
+        
+        recon_loss = F.mse_loss(x_hat, x, reduction='mean')
+        #elbo = (kl + self.hparams.beta * recon_loss)
         mape = torch.mean(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
         medpe = torch.median(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
         
         out_dict = {
             'elbo_test': elbo,
             'kl_test': kl,
-            'recon_loss_test': recon_loss,
             'rmse_test': recon_loss,
             'test_loss': elbo,
-            'test_mape': mape,
-            'test_medpe': medpe
         }
         
         if self.hparams.log_wandb:wandb.log(out_dict)
@@ -344,33 +332,20 @@ class baselineVAEAutoencoder(pl.LightningModule):
         # sample z from q
         std = torch.exp(log_var / 2)
         q = torch.distributions.Normal(mu, std)
+        p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
         z = q.rsample()
-
-        # decoded
         x_hat = self.decoder(z)
 
-        # reconstruction loss
-        #recon_loss = self.gaussian_likelihood(x_hat, self.log_scale, x)
+        elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
         recon_loss = F.mse_loss(x_hat, x, reduction='mean')
-        rmse_loss = torch.sqrt(recon_loss)
-
-        # kl
-        p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
-        kl = torch.distributions.kl_divergence(q, p).mean()
-
-        # elbo
-        elbo = (kl + self.hparams.beta * recon_loss)
         mape = torch.mean(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
         medpe = torch.median(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
         
         out_dict = {
             'elbo_val': elbo,
             'kl_val': kl,
-            'recon_loss_val': recon_loss,
-            'rmse_val': rmse_loss,
+            'rmse_val': recon_loss,
             'val_loss': elbo,
-            'mape_val': mape,
-            'medpe_val': medpe
         }
         if self.hparams.log_wandb:wandb.log(out_dict)
         self.log_dict(out_dict)
