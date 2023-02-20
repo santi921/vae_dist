@@ -40,7 +40,7 @@ if __name__ == '__main__':
         standardize=False,
         lower_filter=True,
         log_scale=True, 
-        min_max_scale=False,
+        min_max_scale=True,
         wrangle_outliers=False,
         scalar=False,
         device=device
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     #kaiming_init(model)
     model.to(device)
     
-    kaiming_init(model)
+    equi_var_init(model)
     #visualize_weight_distribution(model)
     #visualize_activations(model, print_variance=True)
     # check if there are any inf or nan values in the model

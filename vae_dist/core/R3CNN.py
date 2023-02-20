@@ -18,6 +18,7 @@ class R3CNN(pl.LightningModule):
         feat_type_in, 
         feat_type_out, 
         dropout,
+        bias, 
         kernel_size=5, 
         latent_dim=1, 
         max_pool=False, 
@@ -41,25 +42,27 @@ class R3CNN(pl.LightningModule):
             'kernel_size': kernel_size,
             'channels': channels,
             'padding': 0,
-            'bias': True,
+            'bias': bias,
             'stride': stride, 
-            'learning_rate': learning_rate,
             'latent_dim': latent_dim,
             'group': group,
             'gspace': gspace,
             'batch_norm': batch_norm,
             'fully_connected_layers': fully_connected_layers,
+            'activation': 'relu', 
             'dropout': dropout,
+            'learning_rate': learning_rate,
+            'log_wandb': log_wandb,
+            'im_dim': im_dim,
             'max_pool': max_pool,
             'max_pool_kernel_size': max_pool_kernel_size,
             'max_pool_loc': max_pool_loc,
-            'log_wandb': log_wandb,
-            'im_dim': im_dim,
             'reconstruction_loss': reconstruction_loss,
         }
 
+        assert len(channels) == len(stride), "channels and stride must be the same length"
+        assert len(stride) == len(kernel_size), "stride and kernel_size must be the same length"
         self.hparams.update(params)
-        #self.save_hyperparameters()
 
         self.list_dec_fully = []
         self.list_enc_fully  = []
@@ -81,10 +84,51 @@ class R3CNN(pl.LightningModule):
             if self.hparams.max_pool:
                 if i in self.hparams.max_pool_loc:    
                     inner_dim = int(1 + (inner_dim - self.hparams.max_pool_kernel_size + 1 ) / self.hparams.max_pool_kernel_size )
-    
+        
         print("inner_dim: ", inner_dim)
-        print(self.hparams.channels)
-        ######################### Encoder ########################################
+        
+        for ind, h in enumerate(self.hparams.fully_connected_layers):
+            # if it's the last item in the list, then we want to output the latent dim  
+            if ind == 0:
+                self.list_dec_fully.append(torch.nn.Unflatten(1, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim)))        
+                self.list_enc_fully.append(torch.nn.Flatten())
+                h_in = self.hparams.channels[-1] * inner_dim * inner_dim * inner_dim
+                h_out = h
+            else:
+                h_in = self.hparams.fully_connected_layers[ind-1]
+                h_out = h
+
+            self.list_enc_fully.append(torch.nn.Linear(h_in , h_out))
+            self.list_enc_fully.append(torch.nn.LeakyReLU())
+
+
+            if self.hparams.batch_norm:
+                self.list_enc_fully.append(torch.nn.BatchNorm1d(h_out))
+
+            if self.hparams.dropout > 0:
+                self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
+                self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
+
+            if self.hparams.batch_norm and ind != 0:
+                self.list_dec_fully.append(torch.nn.BatchNorm1d(h_in))
+
+            if ind == len(self.hparams.fully_connected_layers)-1:
+                self.list_dec_fully.append(torch.nn.LeakyReLU())
+            else: 
+                self.list_dec_fully.append(torch.nn.LeakyReLU())
+            
+            self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
+        
+        #h_out = self.hparams.latent_dim
+        
+        self.list_dec_fully.append(
+            torch.nn.Linear(self.hparams.latent_dim, self.hparams.fully_connected_layers[-1]))
+        
+        self.list_enc_fully.append(
+            torch.nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim))
+        
+        self.list_enc_fully.append(torch.nn.LeakyReLU())
+
         for ind in range(len(self.hparams.channels)):
             if ind == 0:
                 in_type  = feat_type_in        
@@ -101,22 +145,22 @@ class R3CNN(pl.LightningModule):
             
             self.encoder_conv_list.append(
                 nn.R3Conv(
-                    in_type, 
-                    out_type, 
-                    kernel_size=kernel_size[ind], 
-                    padding=0, 
-                    bias=True,
+                    in_type = in_type, 
+                    out_type = out_type, 
+                    kernel_size = kernel_size[ind], 
+                    stride = stride[ind],
+                    padding = self.hparams.padding,
+                    bias=self.hparams.bias,
                 )
             )
-            
             if self.hparams.batch_norm:
                 self.encoder_conv_list.append(nn.IIDBatchNorm3d(out_type, affine=False))
 
             self.encoder_conv_list.append(nn.ReLU(out_type, inplace=False))  
 
             output_padding = 0
-            if inner_dim%2 == 1 and ind == len(self.hparams.channels)-1:
-                output_padding = 1
+            #if inner_dim%2 == 1 and ind == len(self.hparams.channels)-1:
+            #    output_padding = 1
 
             if dropout > 0: 
                 self.encoder_conv_list.append(nn.PointwiseDropout(out_type, p=dropout))
@@ -149,67 +193,29 @@ class R3CNN(pl.LightningModule):
             if self.hparams.batch_norm:
                 self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type, affine=False))
             
-            self.decoder_conv_list.append(nn.R3ConvTransposed(
-                out_type, 
-                in_type, 
-                kernel_size=kernel_size[ind], 
-                output_padding=0, 
-                bias=True))
-            
-
-        for ind, h in enumerate(self.hparams.fully_connected_layers):
-            # if it's the last item in the list, then we want to output the latent dim  
-            if ind == 0:
-                self.list_dec_fully.append(torch.nn.Unflatten(1, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim)))        
-                self.list_enc_fully.append(torch.nn.Flatten())
-                h_in = self.hparams.channels[-1] * inner_dim * inner_dim * inner_dim
-                h_out = h
-            else:
-                h_in = self.hparams.fully_connected_layers[ind-1]
-                h_out = h
-
-            self.list_enc_fully.append(torch.nn.Linear(h_in , h_out))
-            self.list_enc_fully.append(torch.nn.LeakyReLU())
-
-
-            if self.hparams.batch_norm:
-                self.list_enc_fully.append(torch.nn.BatchNorm1d(h_out))
-
-            if self.hparams.dropout > 0:
-                self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
-                self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
-
-            if self.hparams.batch_norm:
-                self.list_dec_fully.append(torch.nn.BatchNorm1d(h_in))
-
-            if ind == len(self.hparams.fully_connected_layers)-1:
-                self.list_dec_fully.append(torch.nn.LeakyReLU())
-            else: 
-                self.list_dec_fully.append(torch.nn.LeakyReLU())
-            
-            self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
-
-        # sampling layers
-        #self.fc_mu = torch.nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim)
-        #self.fc_var = torch.nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim)
-        h_out = self.hparams.latent_dim
-        #torch.nn.init.zeros_(self.fc_var.bias)
-        
-        self.list_dec_fully.append(
-            torch.nn.Linear(self.hparams.latent_dim, self.hparams.fully_connected_layers[-1]))
-        self.list_enc_fully.append(
-            torch.nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim))
-        self.list_enc_fully.append(torch.nn.ReLU())
+            self.decoder_conv_list.append(
+                nn.R3ConvTransposed(
+                    in_type=out_type, 
+                    out_type=in_type, 
+                    stride=stride[ind],
+                    kernel_size=kernel_size[ind], 
+                    bias=self.hparams.bias,
+                    output_padding=output_padding
+                )
+            )
 
         # reverse the list
         self.list_dec_fully.reverse()
         self.decoder_conv_list.reverse()
         self.encoder_fully_net = torch.nn.Sequential(*self.list_enc_fully)
         self.decoder_fully_net = torch.nn.Sequential(*self.list_dec_fully)
-        summary(self.encoder_fully_net, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim), device="cpu")
-        summary(self.decoder_fully_net, tuple([latent_dim]), device="cpu")        
         self.encoder = nn.SequentialModule(*self.encoder_conv_list)
         self.decoder = nn.SequentialModule(*self.decoder_conv_list)
+        self.model = nn.SequentialModule(self.encoder, self.decoder)
+
+        summary(self.encoder_fully_net, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim), device="cpu")
+        summary(self.decoder_fully_net, tuple([latent_dim]), device="cpu")        
+
 
     def encode(self, x):
         x = self.feat_type_in(x)
@@ -241,7 +247,10 @@ class R3CNN(pl.LightningModule):
 
 
     def loss_function(self, x, x_hat): 
-        
+        # convert to tensor of type float
+        x = x.float()
+        x_hat = x_hat.float()
+
         if self.hparams.reconstruction_loss == "mse":
             recon_loss = F.mse_loss(x_hat, x, reduction='mean')
         elif self.hparams.reconstruction_loss == "l1":
@@ -249,25 +258,21 @@ class R3CNN(pl.LightningModule):
         elif self.hparams.reconstruction_loss == "huber":
             recon_loss = F.huber_loss(x_hat, x, reduction='mean')
         elif self.hparams.reconstruction_loss == 'many_step_inverse_huber':
-            recon_loss = stepwise_inverse_huber_loss(x_hat, x, reduction='mean')
+            recon_loss = stepwise_inverse_huber_loss(x_hat, x)
         elif self.hparams.reconstruction_loss == 'inverse_huber': 
-            recon_loss = inverse_huber(x_hat, x, reduction='mean')
+            recon_loss = inverse_huber(x_hat, x)
         
         return recon_loss
     
-
 
     def training_step(self, batch, batch_idx):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         rmse_loss = torch.sqrt(loss)
-        #mape = torch.mean(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
-        #medpe = torch.median(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
+        
         out_dict = {
             "train_loss": loss,
             "rmse_train": rmse_loss,
-            #"mape_train": mape,
-            #"medpe_train": medpe
             }     
         if self.hparams.log_wandb:wandb.log(out_dict)
         self.log_dict(out_dict)
@@ -279,12 +284,8 @@ class R3CNN(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         rmse_loss = torch.sqrt(loss)
-        #mape = torch.mean(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
-        #medpe = torch.median(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
         out_dict = {
             "test_loss": loss,
-            #"test_mape": mape,
-            #"mape_test": medpe,
             "rmse_test": rmse_loss
         }
         if self.hparams.log_wandb:wandb.log(out_dict)
@@ -296,32 +297,23 @@ class R3CNN(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         rmse_loss = torch.sqrt(loss)
-        #mape = torch.mean(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
-        #medpe = torch.median(torch.abs((predict - batch) / (torch.abs(batch) + 1e-8)))
         out_dict = {
             "val_loss": loss,
             "rmse_val": rmse_loss,
-            #"mape_val": mape, 
-            #'medpe_val': medpe,
-
         }
         if self.hparams.log_wandb:wandb.log(out_dict)
         self.log_dict(out_dict)
         return loss
 
 
-    def load_model(self, path):
-        self.load_state_dict(torch.load(path, map_location='cuda:0'), strict=False)
-        print('Model Created!')
-
-
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        #optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, 
             mode='min', 
-            factor=0.1, 
-            patience=10, 
+            factor=0.5, 
+            patience=20, 
             verbose=True, 
             threshold=0.0001, 
             threshold_mode='rel', 
@@ -335,3 +327,7 @@ class R3CNN(pl.LightningModule):
             }
         return [optimizer], [lr_scheduler]
 
+
+    def load_model(self, path):
+        self.load_state_dict(torch.load(path, map_location='cuda:0'), strict=False)
+        print('Model Created!')

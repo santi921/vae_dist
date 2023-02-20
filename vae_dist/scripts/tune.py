@@ -34,9 +34,12 @@ class training:
             data_dir, 
             transform=False, 
             augmentation=False,
-            standardize=True,
+            standardize=False,
             lower_filter=True,
-            log_scale=log_scale, 
+            log_scale=True, 
+            min_max_scale=True,
+            wrangle_outliers=False,
+            scalar=False,
             device=device
             )
         # check if dataset has any inf or nan values

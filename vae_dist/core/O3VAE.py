@@ -60,6 +60,9 @@ class R3VAE(pl.LightningModule):
             'im_dim': im_dim,
             'reconstruction_loss': reconstruction_loss,
         }
+        assert len(channels) == len(stride), "channels and stride must be the same length"
+        assert len(stride) == len(kernel_size), "stride and kernel_size must be the same length"
+        
         self.hparams.update(params)
         #self.save_hyperparameters()
 
@@ -85,8 +88,40 @@ class R3VAE(pl.LightningModule):
                     inner_dim = int(1 + (inner_dim - self.hparams.max_pool_kernel_size + 1 ) / self.hparams.max_pool_kernel_size )
     
         print("inner_dim: ", inner_dim)
-        print(self.hparams.channels)
-        ######################### Encoder ########################################
+
+        for ind, h in enumerate(self.hparams.fully_connected_layers):
+            # if it's the last item in the list, then we want to output the latent dim  
+            if ind == 0:
+                self.list_dec_fully.append(torch.nn.Unflatten(1, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim)))        
+                self.list_enc_fully.append(torch.nn.Flatten())
+                h_in = self.hparams.channels[-1] * inner_dim * inner_dim * inner_dim
+                h_out = h
+            else:
+                h_in = self.hparams.fully_connected_layers[ind-1]
+                h_out = h
+
+            self.list_enc_fully.append(torch.nn.Linear(h_in , h_out))
+            self.list_enc_fully.append(torch.nn.LeakyReLU())
+
+
+            if self.hparams.batch_norm:
+                self.list_enc_fully.append(torch.nn.BatchNorm1d(h_out))
+
+            if self.hparams.dropout > 0:
+                self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
+                self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
+
+            if self.hparams.batch_norm and ind != 0:
+                self.list_dec_fully.append(torch.nn.BatchNorm1d(h_in))
+
+            if ind == len(self.hparams.fully_connected_layers)-1:
+                self.list_dec_fully.append(torch.nn.LeakyReLU())
+            else: 
+                self.list_dec_fully.append(torch.nn.LeakyReLU())
+            
+            self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
+
+
         for ind in range(len(self.hparams.channels)):
             if ind == 0:
                 in_type  = feat_type_in        
@@ -159,36 +194,6 @@ class R3VAE(pl.LightningModule):
                 bias=True))
             
 
-        for ind, h in enumerate(self.hparams.fully_connected_layers):
-            # if it's the last item in the list, then we want to output the latent dim  
-            if ind == 0:
-                self.list_dec_fully.append(torch.nn.Unflatten(1, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim)))        
-                self.list_enc_fully.append(torch.nn.Flatten())
-                h_in = self.hparams.channels[-1] * inner_dim * inner_dim * inner_dim
-                h_out = h
-            else:
-                h_in = self.hparams.fully_connected_layers[ind-1]
-                h_out = h
-
-            self.list_enc_fully.append(torch.nn.Linear(h_in , h_out))
-            self.list_enc_fully.append(torch.nn.LeakyReLU())
-            
-            if self.hparams.batch_norm:
-                self.list_enc_fully.append(torch.nn.BatchNorm1d(h_out))
-
-            if self.hparams.dropout > 0:
-                self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
-                self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
-
-            if self.hparams.batch_norm:
-                self.list_dec_fully.append(torch.nn.BatchNorm1d(h_in))
-
-            if ind == len(self.hparams.fully_connected_layers)-1:
-                self.list_dec_fully.append(torch.nn.LeakyReLU())
-            else: 
-                self.list_dec_fully.append(torch.nn.LeakyReLU())
-            
-            self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
 
         # sampling layers
         self.fc_mu = torch.nn.Linear(self.hparams.fully_connected_layers[-1], self.hparams.latent_dim)
@@ -202,11 +207,13 @@ class R3VAE(pl.LightningModule):
         self.list_dec_fully.reverse()
         self.decoder_conv_list.reverse()
         self.encoder_fully_net = torch.nn.Sequential(*self.list_enc_fully)
-        self.decoder_fully_net = torch.nn.Sequential(*self.list_dec_fully)
-        summary(self.encoder_fully_net, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim), device="cpu")
-        summary(self.decoder_fully_net, tuple([latent_dim]), device="cpu")        
+        self.decoder_fully_net = torch.nn.Sequential(*self.list_dec_fully)        
         self.encoder = nn.SequentialModule(*self.encoder_conv_list)
         self.decoder = nn.SequentialModule(*self.decoder_conv_list)
+        self.model = nn.SequentialModule(self.encoder, self.decoder)
+        
+        summary(self.encoder_fully_net, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim), device="cpu")
+        summary(self.decoder_fully_net, tuple([latent_dim]), device="cpu")
 
 
     def encode(self, x):
