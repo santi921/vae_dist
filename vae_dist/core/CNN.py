@@ -276,8 +276,6 @@ class CNNAutoencoderLightning(pl.LightningModule):
         predict = self.forward(batch)
         loss = self.loss_function(batch, predict)
         rmse_loss = torch.sqrt(loss)
-        denom = (torch.abs(batch) + torch.abs(predict)) / 2
-        mape = torch.mean(torch.abs((predict - batch) / denom))
         
         out_dict = {
             'val_loss': loss,

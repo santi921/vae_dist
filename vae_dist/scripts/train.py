@@ -4,6 +4,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor
 from vae_dist.dataset.dataset import FieldDataset, dataset_split_loader
 from vae_dist.core.training_utils import construct_model
+torch.set_float32_matmul_precision("high")
 
 def main():              
 
@@ -23,7 +24,7 @@ def main():
     model_select = args.model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    if model_select == 'escnn' or model_select == 'auto':        
+    if model_select == 'escnn' or model_select == 'cnn':        
         run = wandb.init(project="cnn_dist", reinit=True)
     else:
         run = wandb.init(project="vae_dist", reinit=True)
@@ -33,9 +34,12 @@ def main():
         root, 
         transform=False, 
         augmentation=False,
-        standardize=True,
+        standardize=False,
         lower_filter=True,
         log_scale=True, 
+        min_max_scale=True,
+        wrangle_outliers=False,
+        scalar=False,
         device=device
     )
 
@@ -85,9 +89,9 @@ def main():
         max_epochs=epochs, 
         accelerator='gpu', 
         devices = [0],
-        accumulate_grad_batches=5, 
+        accumulate_grad_batches=1, 
         enable_progress_bar=True,
-        gradient_clip_val=0.5,
+        gradient_clip_val=1.0,
         callbacks=[
             pl.callbacks.EarlyStopping(monitor='val_loss', patience=50, verbose = False),
             lr_monitor],

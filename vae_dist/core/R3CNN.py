@@ -157,7 +157,7 @@ class R3CNN(pl.LightningModule):
                 self.encoder_conv_list.append(nn.IIDBatchNorm3d(out_type, affine=False))
 
             self.encoder_conv_list.append(nn.ReLU(out_type, inplace=False))  
-
+            #self.encoder_conv_list.append(nn.NormNonLinearity(out_type, 'n_relu'))   
             output_padding = 0
             #if inner_dim%2 == 1 and ind == len(self.hparams.channels)-1:
             #    output_padding = 1
@@ -189,10 +189,11 @@ class R3CNN(pl.LightningModule):
                 self.decoder_conv_list.append(nn.IdentityModule(in_type))
             else: 
                 self.decoder_conv_list.append(nn.ReLU(in_type, inplace=False))
-            
+                #self.decoder_conv_list.append(nn.NormNonLinearity(in_type, 'n_relu'))            
             if self.hparams.batch_norm:
-                self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type, affine=False))
-            
+                #self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type, affine=False))
+                self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type, affine=True))
+
             self.decoder_conv_list.append(
                 nn.R3ConvTransposed(
                     in_type=out_type, 
@@ -267,7 +268,9 @@ class R3CNN(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         predict = self.forward(batch)
-        loss = self.loss_function(batch, predict)
+        batch_group = self.feat_type_in(batch).tensor
+
+        loss = self.loss_function(batch_group, predict)
         rmse_loss = torch.sqrt(loss)
         
         out_dict = {
@@ -282,7 +285,8 @@ class R3CNN(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         predict = self.forward(batch)
-        loss = self.loss_function(batch, predict)
+        batch_group = self.feat_type_in(batch).tensor
+        loss = self.loss_function(batch_group, predict)
         rmse_loss = torch.sqrt(loss)
         out_dict = {
             "test_loss": loss,
@@ -295,7 +299,8 @@ class R3CNN(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         predict = self.forward(batch)
-        loss = self.loss_function(batch, predict)
+        batch_group = self.feat_type_in(batch).tensor
+        loss = self.loss_function(batch_group, predict)
         rmse_loss = torch.sqrt(loss)
         out_dict = {
             "val_loss": loss,
@@ -307,8 +312,8 @@ class R3CNN(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
-        #optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
+        #optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, 
             mode='min', 

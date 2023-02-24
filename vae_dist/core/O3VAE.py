@@ -138,11 +138,12 @@ class R3VAE(pl.LightningModule):
             
             self.encoder_conv_list.append(
                 nn.R3Conv(
-                    in_type, 
-                    out_type, 
-                    kernel_size=kernel_size[ind], 
-                    padding=0, 
-                    bias=True,
+                    in_type = in_type, 
+                    out_type = out_type, 
+                    kernel_size = kernel_size[ind], 
+                    stride = stride[ind],
+                    padding = self.hparams.padding,
+                    bias=self.hparams.bias,
                 )
             )
             if self.hparams.batch_norm:
@@ -152,8 +153,8 @@ class R3VAE(pl.LightningModule):
     
 
             output_padding = 0
-            if inner_dim%2 == 1 and ind == len(self.hparams.channels)-1:
-                output_padding = 1
+            #if inner_dim%2 == 1 and ind == len(self.hparams.channels)-1:
+            #    output_padding = 1
 
             if dropout > 0: 
                 self.encoder_conv_list.append(nn.PointwiseDropout(out_type, p=dropout))
@@ -186,13 +187,17 @@ class R3VAE(pl.LightningModule):
             if self.hparams.batch_norm:
                 self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type, affine=True))
             
-            self.decoder_conv_list.append(nn.R3ConvTransposed(
-                out_type, 
-                in_type, 
-                kernel_size=kernel_size[ind], 
-                output_padding=0, 
-                bias=True))
-            
+            self.decoder_conv_list.append(
+                nn.R3ConvTransposed(
+                    in_type=out_type, 
+                    out_type=in_type, 
+                    stride=stride[ind],
+                    kernel_size=kernel_size[ind], 
+                    bias=self.hparams.bias,
+                    output_padding=output_padding
+                )
+            )
+
 
 
         # sampling layers
@@ -211,7 +216,7 @@ class R3VAE(pl.LightningModule):
         self.encoder = nn.SequentialModule(*self.encoder_conv_list)
         self.decoder = nn.SequentialModule(*self.decoder_conv_list)
         self.model = nn.SequentialModule(self.encoder, self.decoder)
-        
+
         summary(self.encoder_fully_net, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim), device="cpu")
         summary(self.decoder_fully_net, tuple([latent_dim]), device="cpu")
 

@@ -7,6 +7,7 @@ from vae_dist.core.training_utils import construct_model, LogParameters
 from vae_dist.core.intializers import *
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from torch.multiprocessing import set_start_method
+torch.set_float32_matmul_precision("high")
 try:
      set_start_method('spawn')
 except RuntimeError:
@@ -27,7 +28,7 @@ if __name__ == '__main__':
     model_select = args.model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    if model_select == 'escnn' or model_select == 'auto':        
+    if model_select == 'escnn' or model_select == 'cnn':        
         run = wandb.init(project="cnn_dist_single", reinit=True)
     else:
         run = wandb.init(project="vae_dist_single", reinit=True)
@@ -82,7 +83,7 @@ if __name__ == '__main__':
     #kaiming_init(model)
     model.to(device)
     
-    equi_var_init(model)
+    xavier_init(model)
     #visualize_weight_distribution(model)
     #visualize_activations(model, print_variance=True)
     # check if there are any inf or nan values in the model
@@ -116,17 +117,18 @@ if __name__ == '__main__':
         max_epochs=epochs, 
         accelerator='gpu', 
         devices = [0],
-        accumulate_grad_batches=5, 
+        accumulate_grad_batches=3, 
         enable_progress_bar=True,
-        gradient_clip_val=1.0,
+        gradient_clip_val=0.5,
         callbacks=[early_stop_callback,  
             lr_monitor, 
             log_parameters],
         enable_checkpointing=True,
         default_root_dir=log_save_dir,
         logger=[logger_tb, logger_wb],
+        detect_anomaly=True,
         #pin_memory=True,
-        precision=16
+        #precision=16
     )
     
     trainer.fit(
@@ -138,6 +140,7 @@ if __name__ == '__main__':
 
     model.eval()
     # save state dict
+    print("Saving model to: ", log_save_dir + "/model_single_datapoint.ckpt")
     torch.save(model.state_dict(), log_save_dir + "/model_single_datapoint.ckpt")
     run.finish()
 

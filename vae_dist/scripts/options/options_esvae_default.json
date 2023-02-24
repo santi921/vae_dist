@@ -2,7 +2,7 @@
     "channels": [32, 32, 32, 32, 32],
     "kernel_size": [4, 3, 3, 3, 3],
     "stride":      [1, 1, 1, 1, 1],
-    "latent_dim": 10,
+    "latent_dim": 1,
     "dilation": 1,
     "learning_rate": 0.05,
     "fully_connected_layers": [100, 100, 50],

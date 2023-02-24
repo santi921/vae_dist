@@ -98,22 +98,22 @@ class baselineVAEAutoencoder(pl.LightningModule):
 
 
             self.list_enc_fully.append(torch.nn.Linear(h_in , h_out))
-            self.list_enc_fully.append(torch.nn.LeakyReLU())            
+            self.list_enc_fully.append(torch.nn.LeakyReLU(inplace=False))            
 
             if self.hparams.batch_norm:
                 self.list_enc_fully.append(torch.nn.BatchNorm1d(h_out))
-
+                #self.list_enc_fully.append(torch.nn.InstanceNorm1d(h_out))
             if self.hparams.dropout > 0:
                 self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
                 self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
             
             if self.hparams.batch_norm:
                 self.list_dec_fully.append(torch.nn.BatchNorm1d(h_in))
-
+                #self.list_dec_fully.append(torch.nn.InstanceNorm1d(h_in))
             if ind == len(self.hparams.fully_connected_layers)-1:
-                self.list_dec_fully.append(torch.nn.LeakyReLU())
+                self.list_dec_fully.append(torch.nn.LeakyReLU(inplace=False))
             else: 
-                self.list_dec_fully.append(torch.nn.LeakyReLU())
+                self.list_dec_fully.append(torch.nn.LeakyReLU(inplace=False))
             
             self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
             
@@ -284,6 +284,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
             'elbo_train': elbo,
             'kl_train': kl,
             'rmse_train': rmse_loss,
+            #'recon_loss_train': recon_loss,
             'train_loss': elbo,
         }
 
@@ -305,16 +306,13 @@ class baselineVAEAutoencoder(pl.LightningModule):
         x_hat = self.decoder(z)
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
-        
-        recon_loss = F.mse_loss(x_hat, x, reduction='mean')
-        #elbo = (kl + self.hparams.beta * recon_loss)
-        mape = torch.mean(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
-        medpe = torch.median(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
+        rmse_loss = torch.sqrt(torch.mean((x_hat - batch)**2))
         
         out_dict = {
             'elbo_test': elbo,
             'kl_test': kl,
-            'rmse_test': recon_loss,
+            #'recon_loss_test': recon_loss,
+            'rmse_test': rmse_loss,
             'test_loss': elbo,
         }
         
@@ -337,14 +335,13 @@ class baselineVAEAutoencoder(pl.LightningModule):
         x_hat = self.decoder(z)
 
         elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
-        recon_loss = F.mse_loss(x_hat, x, reduction='mean')
-        mape = torch.mean(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
-        medpe = torch.median(torch.abs((x_hat - batch) / (torch.abs(batch) + 1e-8)))
-        
+        rmse_loss = torch.sqrt(torch.mean((x_hat - batch)**2))
+
         out_dict = {
             'elbo_val': elbo,
             'kl_val': kl,
-            'rmse_val': recon_loss,
+            'rmse_val': rmse_loss,
+            #'recon_loss_val': recon_loss,
             'val_loss': elbo,
         }
         if self.hparams.log_wandb:wandb.log(out_dict)
