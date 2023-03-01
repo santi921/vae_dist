@@ -1,10 +1,13 @@
 import argparse, json, wandb                                         
 import torch                                                      
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import LearningRateMonitor
+from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping
 from vae_dist.dataset.dataset import FieldDataset, dataset_split_loader
 from vae_dist.core.training_utils import construct_model
 torch.set_float32_matmul_precision("high")
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+from vae_dist.core.training_utils import construct_model, LogParameters
+
 
 def main():              
 
@@ -84,19 +87,35 @@ def main():
     print("Dataset has inf or nan values: ", torch.isnan(dataset_vanilla.dataset_to_tensor()).any())
     dataset_loader_full, dataset_loader_train, dataset_loader_test= dataset_split_loader(dataset_vanilla, train_split=0.8, num_workers=0)
 
+
+    log_parameters = LogParameters()
+    logger_tb = TensorBoardLogger(log_save_dir, name="test_logs")
+    logger_wb = WandbLogger(project="{}_dist_single".format(model_select), name="test_logs")
     lr_monitor = LearningRateMonitor(logging_interval='step')
+    early_stop_callback = EarlyStopping(
+        monitor='val_loss',
+        min_delta=0.00,
+        patience=200,
+        verbose=False,
+        mode='min'
+    )
+    
     trainer = pl.Trainer(
         max_epochs=epochs, 
         accelerator='gpu', 
         devices = [0],
-        accumulate_grad_batches=1, 
+        accumulate_grad_batches=3, 
         enable_progress_bar=True,
-        gradient_clip_val=1.0,
-        callbacks=[
-            pl.callbacks.EarlyStopping(monitor='val_loss', patience=50, verbose = False),
-            lr_monitor],
+        gradient_clip_val=0.5,
+        callbacks=[early_stop_callback,  
+            lr_monitor, 
+            log_parameters],
         enable_checkpointing=True,
-        default_root_dir=log_save_dir
+        default_root_dir=log_save_dir,
+        logger=[logger_tb, logger_wb],
+        detect_anomaly=True,
+        #pin_memory=True,
+        #precision=16
     )
 
     trainer.fit(

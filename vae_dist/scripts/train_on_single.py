@@ -80,10 +80,13 @@ if __name__ == '__main__':
     wandb.config.update(options)
     
     # load model to gpu
-    #kaiming_init(model)
+    
     model.to(device)
     
+    #kaiming_init(model)
     xavier_init(model)
+    #equi_var_init(model)
+    
     #visualize_weight_distribution(model)
     #visualize_activations(model, print_variance=True)
     # check if there are any inf or nan values in the model

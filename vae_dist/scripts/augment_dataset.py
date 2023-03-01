@@ -34,18 +34,18 @@ def main():
     # create output directory if it doesn't exist
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    start_line = "#Sample Density: 10 10 10; Volume: Box: 3.000000 3.000000 3.000000"
+    
     # iterate through files in input directory ending in .dat
-    for file in os.listdir(input_dir):
+    for ind, file in enumerate(os.listdir(input_dir)):
         if file.endswith(".dat"):
-            mat, shape = mat_pull(input_dir + file)
-            mat_aug = aug_obj(mat.reshape([1, shape[0], shape[1], shape[2], 3]))
+            mat, meta_data = mat_pull(input_dir + file, meta_data = True)
+            mat_aug = aug_obj(mat.reshape([1, meta_data['steps_x'], meta_data['steps_y'], meta_data['steps_z'], 3]))
             # save augmented data to output directory as .dat file
             for i in range(len(mat_aug)):
                 write_mat(
-                    mat_aug[i].reshape([shape[0], shape[1], shape[2], 3]),
+                    mat_aug[i].reshape([meta_data['steps_x'], meta_data['steps_y'], meta_data['steps_z'], 3]),
                     output_dir + file.split(".")[0] + "_" + str(i) + "." + file.split(".")[1],
-                    start_line = start_line)
+                    start_line = meta_data['start_line'],)
             
     
 

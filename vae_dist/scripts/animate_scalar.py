@@ -16,15 +16,14 @@ from vae_dist.dataset.dataset import FieldDataset
 from vae_dist.core.training_utils import construct_model 
 from vae_dist.dataset.fields import split_and_filter
 
-
-
 def plot_sfield(
         scalar_field, 
         z_ind=11, 
         z_level = 0.0, 
         cmax=None, 
         cmin=None, 
-        colorbar=None
+        colorbar=None,
+        x_y_dims= {"x": [-3.0, 3.3, 0.3], "y": [-3.0, 3.3, 0.3]}
         ):
     # plot iso surface of a given scalar field
     # z_level: iso surface level
@@ -33,8 +32,8 @@ def plot_sfield(
     #print(z_ind, z_level)
     # create flat surface with color values = zvals at z_level
     surface = go.Surface(
-        x = np.arange(-3.3, 3.3, 0.3),
-        y = np.arange(-3.3, 3.3, 0.3),
+        x = np.arange(x_y_dims['x'][0], x_y_dims['x'][1], x_y_dims['x'][2]),
+        y = np.arange(x_y_dims['y'][0], x_y_dims['y'][1], x_y_dims['y'][2]),
         z=z_level*np.ones_like(zvals),
         showscale=True, 
         surfacecolor=zvals,
@@ -49,39 +48,40 @@ def plot_sfield(
     #return xvals, yvals, zvals
 
 
-def show_in_out_plots(in_field, model, device):
-    #fig = make_subplots(
-    #    rows=1, cols=2,
-    #    specs=[[{'type': 'surface'}, {'type': 'surface'}]],
-    #            subplot_titles=("Scalar In", "Scalar Out"),
-    #            )
-
-    x = in_field.reshape(1, 1, 21, 21, 21).to(device)
+def show_in_out_plots(
+        in_field, 
+        model, 
+        device, 
+        shape_dict={'x': 21, 'y': 21, 'z': 21}, 
+        bounds_dict={"x": [-3.3, 3.0], "y": [-3.3, 3.0], "z": [-3.3, 3.0]}):
+    
+    z_step = (bounds_dict['z'][1] - bounds_dict['z'][0]) / (shape_dict['z'])
+    x = in_field.reshape(1, 1, shape_dict["x"], shape_dict['y'], shape_dict['z']).to(device)
     x_out = model.forward(x)
-    x_out = x_out.to('cpu').detach().numpy().reshape(1, 1, 21, 21, 21)
-    max_val = max(np.max(x.cpu().numpy().reshape(21, 21, 21)), np.max(x_out.reshape(21, 21, 21)))
+    x_out = x_out.to('cpu').detach().numpy().reshape(1, 1, shape_dict["x"], shape_dict['y'], shape_dict['z'])
+    max_val = max(np.max(x.cpu().numpy().reshape(shape_dict["x"], shape_dict['y'], shape_dict['z'])), np.max(x_out.reshape(shape_dict["x"], shape_dict['y'], shape_dict['z'])))
     #max_val = np.max(x_out.reshape(21, 21, 21))
-    min_val = min(np.min(x.cpu().numpy().reshape(21, 21, 21)), np.min(x_out.reshape(21, 21, 21)))
+    min_val = min(np.min(x.cpu().numpy().reshape(shape_dict["x"], shape_dict['y'], shape_dict['z'])), np.min(x_out.reshape(shape_dict["x"], shape_dict['y'], shape_dict['z'])))
     print("max_val: ", max_val)
     print("min_val: ", min_val)
     
     frames_in = []
     frames_out = []
-    scalar_in = x.cpu().numpy().reshape(21, 21, 21)
-    scalar_out = x_out.reshape(21, 21, 21)
-    for i in range(21):
+    scalar_in = x.cpu().numpy().reshape(shape_dict["x"], shape_dict['y'], shape_dict['z'])
+    scalar_out = x_out.reshape(shape_dict["x"], shape_dict['y'], shape_dict['z'])
+    for i in range(shape_dict['z']):
         if i == 0:
             frame_init = plot_sfield(
                 scalar_in,
                 z_ind=0,
-                z_level=float(-3.0),
+                z_level=float(bounds_dict['z'][0]),
                 cmin=min_val,
                 cmax=max_val,
                 )
             frame_init_out = plot_sfield(
                 scalar_out,
                 z_ind=0,
-                z_level=float(-3.0),
+                z_level=float(bounds_dict['z'][0]),
                 cmin=min_val,
                 cmax=max_val,
                 colorbar=dict(thickness=20, ticklen=4),
@@ -91,7 +91,7 @@ def show_in_out_plots(in_field, model, device):
             plot_sfield(
             scalar_in, 
             z_ind=i, 
-            z_level=float(-3.0  + 0.3 * i), 
+            z_level=float(bounds_dict['z'][0]  + z_step * i), 
             cmin=min_val, cmax=max_val))
         
         frames_out.append(
@@ -99,7 +99,7 @@ def show_in_out_plots(in_field, model, device):
             scalar_out, 
             z_ind=i, 
             z_level=float(
-            -3.0  + 0.3 * i), 
+            bounds_dict['z'][0]  + z_step * i), 
             cmin=min_val, 
             cmax=max_val)
             )
@@ -114,7 +114,7 @@ def show_in_out_plots(in_field, model, device):
         data=[frames_in[i], frames_out[i]], 
         name=str(i), 
         traces=[0, 1]) 
-        for i in range(21)
+        for i in range(shape_dict['z'])
         ]    
     
     fig.add_trace(frame_init, row=1, col=1)
@@ -138,13 +138,13 @@ def show_in_out_plots(in_field, model, device):
     # Layout
     fig.update_layout(
             scene = dict(
-                xaxis = dict(nticks=10, range=[-3,3],),
-                yaxis = dict(nticks=10, range=[-3,3],),
-                zaxis = dict(nticks=10, range=[-3,3],)),
+                xaxis = dict(nticks=10, range=bounds_dict['x'],),
+                yaxis = dict(nticks=10, range=bounds_dict['y'],),
+                zaxis = dict(nticks=10, range=bounds_dict['z'],)),
             scene2 = dict(
-                xaxis = dict(nticks=10, range=[-3,3],),
-                yaxis = dict(nticks=10, range=[-3,3],),
-                zaxis = dict(nticks=10, range=[-3,3],)),
+                xaxis = dict(nticks=10, range=bounds_dict['x'],),
+                yaxis = dict(nticks=10, range=bounds_dict['y'],),
+                zaxis = dict(nticks=10, range=bounds_dict['z'],)),
             title='Slices in volumetric data',
             width=2000, height=1000,
             updatemenus = [

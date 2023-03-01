@@ -83,7 +83,6 @@ def split_and_filter(mat, cutoff_low_percentile = 95, cutoff_high_percentile= 99
     u = np.around(u, decimals=2)
     v = np.around(v, decimals=2)
     w = np.around(w, decimals=2)
-    # put back into matrix form 
 
     return u, v, w
 
@@ -95,7 +94,8 @@ def pull_fields(root, ret_names = False):
     names = []
     for file in os.listdir(root):
         if file.endswith(".dat"):
-            mat, shape = mat_pull(root + file)
+            mat, meta = mat_pull(root + file, meta_data=True)
+            shape = [meta["steps_x"], meta["steps_y"], meta["steps_z"]]
             mats.append(mat)
             names.append(file)
     mats = np.array(mats)
@@ -104,32 +104,66 @@ def pull_fields(root, ret_names = False):
     return mats, shape
 
 
-def mat_pull(file):
+def mat_pull(file, meta_data=False):
 
     with open(file) as f: 
         lines = f.readlines()
 
-    steps_x = 2 * int(lines[0].split()[2]) + 1
-    steps_y = 2 * int(lines[0].split()[3]) + 1
-    steps_z = 2 * int(lines[0].split()[4][:-1]) + 1
-    mat = np.zeros((steps_x, steps_y, steps_z, 3))
+    if meta_data:
+        
+        steps_x = 2 * int(lines[0].split()[2]) + 1
+        steps_y = 2 * int(lines[0].split()[3]) + 1
+        steps_z = 2 * int(lines[0].split()[4][:-1]) + 1
+        x_size = float(lines[0].split()[-3])
+        y_size = float(lines[0].split()[-2])
+        z_size = float(lines[0].split()[-1])
 
-    for ind, i in enumerate(lines[7:]):
-        line_split = i.split()
-        # warn if number is larger than 10 or smaller than -10
-        #if (float(line_split[-3]) > 100 or float(line_split[-3]) < -100):
-        #    print("Warning: value of {} is larger than 100 or smaller than -100".format(float(line_split[-3])))
-        #    print(file) 
-        #if (float(line_split[-2]) > 100 or float(line_split[-2]) < -100):
-        #    print("Warning: value of {} is larger than 100 or smaller than -100".format(float(line_split[-2])))
-        #    print(file) 
-        #if (float(line_split[-1]) > 100 or float(line_split[-1]) < -100):
-        #    print("Warning: value of {} is larger than 100 or smaller than -100".format(float(line_split[-1])))
-        #    print(file)    
-        mat[int(ind/(steps_z*steps_y)), int(ind/steps_z % steps_y), ind%steps_z, 0] = float(line_split[-3])
-        mat[int(ind/(steps_z*steps_y)), int(ind/steps_z % steps_y), ind%steps_z, 1] = float(line_split[-2])
-        mat[int(ind/(steps_z*steps_y)), int(ind/steps_z % steps_y), ind%steps_z, 2] = float(line_split[-1])
-    return mat, [steps_x, steps_y, steps_z]
+        meta_dict = {
+            "steps_x": steps_x,
+            "steps_y": steps_y,
+            "steps_z": steps_z,
+            "step_size_x": np.round(x_size / float(lines[0].split()[2]), 4),
+            "step_size_y": np.round(y_size / float(lines[0].split()[3]), 4),
+            "step_size_z": np.round(z_size / float(lines[0].split()[4][:-1]), 4),
+            "first_line": lines[0]
+        }
+
+        return mat, meta_dict
+    
+    else: 
+        steps_x = 2 * int(lines[0].split()[2]) + 1
+        steps_y = 2 * int(lines[0].split()[3]) + 1
+        steps_z = 2 * int(lines[0].split()[4][:-1]) + 1
+        mat = np.zeros((steps_x, steps_y, steps_z, 3))
+
+        # gap_x = round(np.abs(float(lines[steps_x*steps_y + 7].split()[0]) - float(lines[7].split()[0])), 4)
+        # gap_y = round(np.abs(float(lines[steps_x+8].split()[1]) - float(lines[7].split()[1])), 4)
+        # gap_z = round(np.abs(float(lines[8].split()[2]) - float(lines[7].split()[2])), 4)
+
+        for ind, i in enumerate(lines[7:]):
+            line_split = i.split()
+            # print(i)
+            mat[
+                int(ind / (steps_z * steps_y)),
+                int(ind / steps_z % steps_y),
+                ind % steps_z,
+                0,
+            ] = float(line_split[-3])
+            mat[
+                int(ind / (steps_z * steps_y)),
+                int(ind / steps_z % steps_y),
+                ind % steps_z,
+                1,
+            ] = float(line_split[-2])
+            mat[
+                int(ind / (steps_z * steps_y)),
+                int(ind / steps_z % steps_y),
+                ind % steps_z,
+                2,
+            ] = float(line_split[-1])
+        
+        return mat
+
 
 
 def helmholtz_hodge_decomp_approx(mat):

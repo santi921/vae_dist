@@ -1,70 +1,11 @@
 import numpy as np 
-import plotly.graph_objects as go
 import networkx as nx
+from plotly.offline import iplot
+import plotly.graph_objects as go
+
 from vae_dist.data.rdkit import xyz2AC_vdW, pdb_to_xyz, get_AC
 from vae_dist.dataset.fields import split_and_filter, pull_fields 
-from plotly.offline import iplot
-
-atom_int_dict = {
-    'H': 1,
-    'C': 6,
-    'N': 7,
-    'O': 8,
-    'F': 9,
-    'P': 15,
-    'S': 16,
-    'Cl': 17,
-    'Br': 35,
-    'Fe': 26, 
-    'FE': 26, 
-    'I': 53
-}
-
-
-int_atom_dict = {
-    1: 'H',
-    6: 'C',
-    7: 'N',
-    8: 'O',
-    9: 'F',
-    15: 'P',
-    16: 'S',
-    17: 'Cl',
-    35: 'Br',
-    26: 'Fe',
-    53: 'I'
-}
-
-
-atomic_size = {
-    'H': 0.5,
-    'C': 1.7,
-    'N': 1.55,
-    'O': 1.52,
-    'F': 1.47,
-    'P': 1.80,
-    'S': 1.80,
-    'Cl': 1.75,
-    'Br': 1.85,
-    'Fe': 1.80,
-    'I': 1.98
-}
-
-
-atom_colors = {
-    'H': 'white',
-    'C': 'black',
-    'N': 'blue',
-    'O': 'red',
-    'F': 'orange',
-    'P': 'green',
-    'S': 'yellow',
-    'Cl': 'green',
-    'Br': 'brown',
-    'Fe': 'orange',
-    'I': 'purple'
-}
-
+from vae_dict.data.dictionaries import * 
 
 def filter_xyz_by_distance(xyz, center = [0,0,0], distance = 5):
     xyz = np.array(xyz, dtype = float)
@@ -197,7 +138,13 @@ def plot_nodes_edge(file = "../../data/pdbs_processed/1a4e.pdb"):
     #fig.show()
 
 
-def get_cones_viz_from_pca(vector_scale = 3, components = 10, dir_fields = "../../data/cpet/"): 
+def get_cones_viz_from_pca(
+        vector_scale = 3, 
+        components = 10, 
+        dir_fields = "../../data/cpet/",
+        bounds_dict = {'x': [-3, 3.3], 'y': [-3, 3.3], 'z': [-3, 3.3]},
+        steps_dict = {"x": 0.3, "y": 0.3, "z": 0.3}
+    ): 
 
     cones = []
 
@@ -222,10 +169,10 @@ def get_cones_viz_from_pca(vector_scale = 3, components = 10, dir_fields = "../.
         comp_vect_field = pca_comp.reshape(shape_mat[1], shape_mat[2], shape_mat[3], shape_mat[4])
 
         x, y, z = np.meshgrid(
-                        np.arange(-3, 3.3, 0.3),
-                        np.arange(-3, 3.3, 0.3),
-                        np.arange(-3, 3.3, 0.3)
-                        )
+                np.arange(bounds_dict['x'][0], bounds_dict['x'][1], steps_dict['x']),
+                np.arange(bounds_dict['y'][0], bounds_dict['y'][1], steps_dict['y']),
+                np.arange(bounds_dict['z'][0], bounds_dict['z'][1], steps_dict['z'])
+                )
 
         u_1, v_1, w_1 = split_and_filter(
             comp_vect_field, 
@@ -247,13 +194,13 @@ def get_cones_viz_from_pca(vector_scale = 3, components = 10, dir_fields = "../.
     return cones 
         
 
-def get_latent_space(model, dataset, comp=[0, 2], latent_dim=10):
+def get_latent_space(model, dataset, comp=[0, 2], latent_dim=10, field_dims=(3, 21, 21, 21)):
     latent_space = []
     # convert load to numpy 
     dataset_loader_np = []
     print("Total number of fields: ", len(dataset))
     for ind in range(len(dataset)):
-        field=dataset[ind].reshape(1, 3, 21, 21, 21)
+        field=dataset[ind].reshape(1, field_dims[0], field_dims[1], field_dims[2], field_dims[3])
         latent = model.latent(field)
         #print(latent.shape)
         latent_space.append(latent.detach().cpu().numpy())
@@ -263,39 +210,42 @@ def get_latent_space(model, dataset, comp=[0, 2], latent_dim=10):
         return np.array(latent_space).reshape(-1, latent_dim)[:, comp]
 
 
-def plot_vfield(mat, cutoff_low = 95, cutoff_high = 99.999, min_max = True, scale = 10):
-        x = mat #dataset_test.data[0] 
-        x = x.reshape(21, 21, 21, 3)
-        u_1, v_1, w_1 = split_and_filter(x, min_max = min_max, cutoff_low = cutoff_low, cutoff_high = cutoff_high)  
-        a, b, c = np.meshgrid(
-                np.arange(-3, 3.3, 0.3),
-                np.arange(-3, 3.3, 0.3),
-                np.arange(-3, 3.3, 0.3)
+def plot_vfield(
+        mat, 
+        cutoff_low = 95, 
+        cutoff_high = 99.999, 
+        min_max = True, 
+        scale = 10, 
+        bounds_dict = {'x': [-3, 3.3], 'y': [-3, 3.3], 'z': [-3, 3.3]},
+        steps_dict = {"x": 0.3, "y": 0.3, "z": 0.3}
+    ):
+        # mat has shape (1, 3, 21, 21, 21)
+        x = mat 
+        print(x.min(), x.max())
+        u_1, v_1, w_1 = split_and_filter(x, 
+                                         cutoff_low_percentile = cutoff_low, 
+                                         cutoff_high_percentile = cutoff_high)  
+        x, y, z = np.meshgrid(
+                np.arange(bounds_dict['x'][0], bounds_dict['x'][1], steps_dict['x']),
+                np.arange(bounds_dict['y'][0], bounds_dict['y'][1], steps_dict['y']),
+                np.arange(bounds_dict['z'][0], bounds_dict['z'][1], steps_dict['z'])
                 )
-
+        
         #max value of each dimension
         max_u = np.max(u_1)
         max_v = np.max(v_1)
         max_w = np.max(w_1)
-        print(max_u, max_v, max_w)
-        
+
+        #print(max_u, max_v, max_w)
+        #print(a.shape, b.shape, c.shape, u_1.shape, v_1.shape, w_1.shape)
         cones = go.Cone(
-                x=a.flatten(), 
-                y=b.flatten(), 
-                z=c.flatten(), 
+                x=x.flatten(), 
+                y=y.flatten(), 
+                z=z.flatten(), 
                 u=u_1 ,
                 v=v_1 , 
                 w=w_1 ,
-                sizeref=scale,)
-                #opacity=0.0) 
+                sizeref=scale)
                 
-        layout = go.Layout(
-                title='Cones',
-                width=700,
-                height=700,
-                        #sizeref=0.5,
-                        #anchor='tail'
-                )
-
-        fig = go.Figure(data=cones,layout=layout)
-        iplot(fig)
+        components = {"u": u_1, "v": v_1, "w": w_1}
+        return cones, components

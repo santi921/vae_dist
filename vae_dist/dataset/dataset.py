@@ -44,7 +44,6 @@ class FieldDataset(torch.utils.data.Dataset):
                 mags_log1p = np.log1p(mags)
                 # get ratio magnitude to mags_log1p
                 ratio = mags_log1p / mags
-                # this is wrong for vectors for sure
                 multiply = np.multiply(data, ratio) 
                 data = multiply
 

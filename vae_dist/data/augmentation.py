@@ -29,7 +29,7 @@ class Augment(object):
 def augment_mat_field(mat, xy, z, rot = 0):
         aug_mat = []
         aug_mat.append(mat)
-        print(mat.shape)
+        
         if(xy):
             x_flip = np.array(np.flip(mat, axis = 1), dtype=float)
             y_flip = np.array(np.flip(mat, axis = 0), dtype=float)
@@ -81,19 +81,6 @@ def augment_mat_field(mat, xy, z, rot = 0):
                 rot[:,:,:,2] = -1*rot[:,:,:,2]
                 aug_mat.append(rot)
 
-                                # add 180
-                #rot = np.rot90(deepcopy(mat), axes = (0,2), k = 2)
-                #rot[:,:,:,0] = -1*rot[:,:,:,1]
-                #rot[:,:,:,1] = -1*rot[:,:,:,1]
-                #aug_mat.append(rot)
-
-
-                # add 180
-                #rot = np.rot90(deepcopy(mat), axes = (0,1), k = 2)
-                #rot[:,:,:,2] = -1*rot[:,:,:,2]
-                #rot[:,:,:,1] = -1*rot[:,:,:,1]
-
-                aug_mat.append(rot)
         return aug_mat 
 
 
