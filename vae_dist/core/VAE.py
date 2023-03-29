@@ -87,7 +87,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
             if self.hparams.max_pool:
                 if i in self.hparams.max_pool_loc:    
                     #inner_dim = int(1 + (inner_dim - self.hparams.max_pool_kernel_size + 1 ) / self.hparams.max_pool_kernel_size )
-                    inner_dim = int(1 + (inner_dim - self.hparams.max_pool_kernel_size_in + 1 ) / self.hparams.max_pool_kernel_size_in[)
+                    inner_dim = int(1 + (inner_dim - self.hparams.max_pool_kernel_size_in + 1 ) / self.hparams.max_pool_kernel_size_in)
         print("inner_dim: ", inner_dim)
 
         for ind, h in enumerate(self.hparams.fully_connected_layers):

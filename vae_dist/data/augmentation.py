@@ -1,5 +1,6 @@
 import numpy as np 
 import torch 
+import scipy.ndimage
 from torch.functional import F
 from copy import deepcopy
 class Augment(object):
@@ -20,10 +21,27 @@ class Augment(object):
         for _, i in enumerate(mat):
             x_aug = augment_mat_field(i, self.xy, self.z, self.rot)
             [full_aug.append(j) for j in x_aug]
-        
             print(len(full_aug))
 
         return np.array(full_aug)    
+
+
+def x_rotation(vector,theta):
+    """Rotates 3-D vector around x-axis"""
+    R = np.array([[1,0,0],[0,np.cos(theta),-np.sin(theta)],[0, np.sin(theta), np.cos(theta)]])
+    return np.dot(R,vector)
+
+
+def y_rotation(vector,theta):
+    """Rotates 3-D vector around y-axis"""
+    R = np.array([[np.cos(theta),0,np.sin(theta)],[0,1,0],[-np.sin(theta), 0, np.cos(theta)]])
+    return np.dot(R,vector)
+
+
+def z_rotation(vector,theta):
+    """Rotates 3-D vector around z-axis"""
+    R = np.array([[np.cos(theta), -np.sin(theta),0],[np.sin(theta), np.cos(theta),0],[0,0,1]])
+    return np.dot(R,vector)
 
 
 def augment_mat_field(mat, xy, z, rot = 0):
@@ -39,7 +57,7 @@ def augment_mat_field(mat, xy, z, rot = 0):
             y_flip[:,:,:,1] = -1*y_flip[:,:,:,1]
             xy_flip[:,:,:,0] = -1*xy_flip[:,:,:,0]
             xy_flip[:,:,:,1] = -1*xy_flip[:,:,:,1]
-            
+         
             aug_mat.append(x_flip)
             aug_mat.append(y_flip)
             aug_mat.append(xy_flip)
@@ -62,7 +80,6 @@ def augment_mat_field(mat, xy, z, rot = 0):
             xyz_flip[:,:,:, 1] = -1*xyz_flip[:,:,:, 1]
             xyz_flip[:,:,:, 2] = -1*xyz_flip[:,:,:, 2]
             
-            
             aug_mat.append(z_flip)
             aug_mat.append(xz_flip)
             aug_mat.append(yz_flip)
@@ -70,10 +87,23 @@ def augment_mat_field(mat, xy, z, rot = 0):
 
         if(rot>0):
             if rot == 4:
-                # add 90, 180, 270 rotations
-                aug_mat.append(np.rot90(mat, axes = (1,2)))
-                aug_mat.append(np.rot90(mat, axes = (1,2), k = 2))
-                aug_mat.append(np.rot90(mat, axes = (1,2), k = 3))
+                rot_1 = deepcopy(mat)
+                rot_3 = deepcopy(mat)
+                for i in range(rot_1.shape[0]):
+                    for j in range(rot_1.shape[1]):
+                        for k in range(rot_1.shape[2]):
+                            rot_1[i,j,k,0:3] = z_rotation(rot_1[i,j,k,0:3], np.pi/2)
+                            rot_3[i,j,k,0:3] = z_rotation(rot_3[i,j,k,0:3], 3*np.pi/2)
+
+                # rotate 90
+                rot_1 = np.rot90(deepcopy(rot_1), axes = (1,2), k = 1)
+                rot_3 = np.rot90(deepcopy(rot_3), axes = (1,2), k = 3)
+
+
+                aug_mat.append(rot_1)
+                aug_mat.append(x_flip)
+                aug_mat.append(rot_3)
+                
             elif rot == 2:
                 # add 180
                 rot = np.rot90(deepcopy(mat), axes = (1,2), k = 2)

@@ -1,10 +1,12 @@
 import torch 
 from escnn import gspaces, nn, group                                        
 
+
 from vae_dist.core.O3VAE import R3VAE
 from vae_dist.core.R3CNN import R3CNN
 from vae_dist.core.VAE import baselineVAEAutoencoder
 from vae_dist.core.CNN import CNNAutoencoderLightning
+from vae_dist.core.R3CNN_regressor import R3CNNRegressor
 from escnn import gspaces, nn, group                                         
 import pytorch_lightning as pl
 import numpy as np 
@@ -31,6 +33,8 @@ class LogParameters(pl.Callback):
             
 
 
+    
+
 def train(model, data_loader, epochs=20):
     opt = torch.optim.Adam(model.parameters(),
                              lr = 1e-1,
@@ -56,6 +60,8 @@ def construct_model(model, options):
     Returns
         model: pl.LightningModule, the model
     """
+    assert model in ['vae', 'cnn', 'escnn', 'escnn_supervised', 'cnn_supervised', 'escnn_regressor', 'escnn_regressor_supervised'], "Model must be vae, cnn, escnn, escnn_supervised, cnn_supervised, escnn_regressor, escnn_regressor_supervised"
+    
     if model == 'esvae':
         #g = group.so3_group()
         #g = group.DihedralGroup(4)
@@ -76,6 +82,15 @@ def construct_model(model, options):
         feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
         feat_type_out = nn.FieldType(gspace,  input_out_reps)  
         model = R3CNN(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)   
+    
+    elif model == 'escnn_supervised':
+        g = group.so3_group()
+        gspace = gspaces.flipRot3dOnR3(maximum_frequency=64) 
+        input_out_reps = 3*[gspace.trivial_repr]
+        output_reps = [gspace.trivial_repr]
+        feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
+        feat_type_out = nn.FieldType(gspace,  output_reps)  
+        model = R3CNNRegressor(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)
 
     elif model == 'cnn':
         model = CNNAutoencoderLightning(**options)
@@ -167,6 +182,7 @@ def construct_model_hyper(model, options):
 
 
 def hyperparameter_dicts():
+
     dict_ret = {}
     
     dict_escnn = {
@@ -343,3 +359,4 @@ def hyperparameter_dicts():
     dict_ret['auto'] = dict_auto
     dict_ret['vae'] = dict_vae
     return dict_ret
+

@@ -2,7 +2,7 @@ import argparse, json, wandb
 import torch                                                      
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping
-from vae_dist.dataset.dataset import FieldDataset
+from vae_dist.dataset.dataset import FieldDatasetSupervised
 from vae_dist.core.training_utils import construct_model, LogParameters
 from vae_dist.core.intializers import *
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
@@ -22,57 +22,43 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=1000)
 
     args = parser.parse_args()
-
-    root = "../../data/cpet_5ang_25/"
     epochs = args.epochs
     model_select = args.model
+    
+    root = "../../data/cpet_augmented/"
+    supervised_file = "../../data/protein_data.csv"
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    if model_select == 'escnn' or model_select == 'cnn':        
-        run = wandb.init(project="cnn_dist_single_25", reinit=True)
-    else:
-        run = wandb.init(project="vae_dist_single_25", reinit=True)
-    
-
-    dataset_vanilla = FieldDataset(
+    dataset_vanilla = FieldDatasetSupervised(
         root, 
+        supervised_file,
         transform=False, 
         augmentation=False,
-        standardize=True,
+        standardize=False,
         lower_filter=True,
-        log_scale=False, 
-        min_max_scale=True,
-        wrangle_outliers=True,
+        log_scale=True, 
+        min_max_scale=False,
+        wrangle_outliers=False,
         scalar=False,
         device=device, 
-        offset=0
+        offset=1
     )
 
+    if model_select == 'escnn' or model_select == 'cnn':        
+        run = wandb.init(project="supervised_vae_dist", reinit=True)
+    
+    assert model_select in ['escnn', 'cnn'], "Model must be escnn or cnn"
+    
     if model_select == 'escnn':
-        options = json.load(open('./options/options_escnn_default_25.json'))
-        log_save_dir = "./log_version_escnn_1/"
-        model = construct_model("escnn", options)
-
-
-    elif model_select == 'esvae':
-        options = json.load(open('./options/options_esvae_default.json'))
-        log_save_dir = "./log_version_esvae_1/"
-        model = construct_model("esvae", options)
+        options = json.load(open('./options/options_escnn_default_supervised.json'))
+        log_save_dir = "./log_version_escnn/"
+        model = construct_model("escnn_supervised", options)
 
     elif model_select == 'cnn':
-        options = json.load(open('./options/options_cnn_default.json'))
-        log_save_dir = "./log_version_auto_1/"
-        model = construct_model("cnn", options)
+        options = json.load(open('./options/options_cnn_default_supervised.json'))
+        log_save_dir = "./log_version_cnn/"
+        model = construct_model("cnn_supervised", options)
 
-    elif model_select == 'vae':
-        options = json.load(open('./options/options_vae_default.json'))
-        log_save_dir = "./log_version_vae_1/"
-        model = construct_model("vae", options)
-
-    else: 
-        # throw error
-        print("Model not found")
-    
     wandb.config.update({
         "model": model_select,
         "epochs": epochs,
@@ -81,9 +67,7 @@ if __name__ == '__main__':
     wandb.config.update(options)
     
     # load model to gpu
-    
     model.to(device)
-    
     #kaiming_init(model)
     xavier_init(model)
     #equi_var_init(model)
@@ -96,7 +80,7 @@ if __name__ == '__main__':
     
     dataset_loader_full = torch.utils.data.DataLoader(
         dataset_vanilla, 
-        batch_size=32,
+        batch_size=8,
         shuffle=False,
         num_workers=0
     )
@@ -108,12 +92,12 @@ if __name__ == '__main__':
         min_delta=0.00,
         patience=200,
         verbose=False,
-        mode='min'
+        mode='max'
     )
 
     log_parameters = LogParameters()
     logger_tb = TensorBoardLogger(log_save_dir, name="test_logs")
-    logger_wb = WandbLogger(project="{}_dist_single".format(model_select), name="test_logs")
+    logger_wb = WandbLogger(project="{}_supervised_vae_dist".format(model_select), name="test_logs")
 
     trainer = pl.Trainer(
         max_epochs=epochs, 
@@ -141,7 +125,7 @@ if __name__ == '__main__':
 
     model.eval()
     # save state dict
-    print("Saving model to: ", log_save_dir + "/model_single_datapoint.ckpt")
-    torch.save(model.state_dict(), log_save_dir + "/model_single_datapoint.ckpt")
+    print("Saving model to: ", log_save_dir + "/model_supervised_datapoint.ckpt")
+    torch.save(model.state_dict(), log_save_dir + "/model_supervised_datapoint.ckpt")
     run.finish()
 

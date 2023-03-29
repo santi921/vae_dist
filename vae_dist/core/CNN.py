@@ -83,7 +83,7 @@ class CNNAutoencoderLightning(pl.LightningModule):
             inner_dim = int((inner_dim - (self.hparams.kernel_size[i] - 1)) / self.hparams.stride[i])
             if self.hparams.max_pool:
                 if i in self.hparams.max_pool_loc:    
-                    inner_dim = int(1 + (inner_dim - self.hparams.max_pool_kernel_size_in + 1 ) / self.hparams.max_pool_kernel_size_in[)
+                    inner_dim = int(1 + (inner_dim - self.hparams.max_pool_kernel_size_in + 1 ) / self.hparams.max_pool_kernel_size_in)
     
         print("inner_dim: ", inner_dim)
 
