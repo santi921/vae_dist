@@ -10,10 +10,7 @@ from vae_dist.core.losses import stepwise_inverse_huber_loss, inverse_huber
 class CNNAutoencoderLightning(pl.LightningModule):
     def __init__(
         self,
-        irreps, 
         channels,
-        kernel_size,
-        stride,
         padding,
         dilation,
         groups,
@@ -26,8 +23,14 @@ class CNNAutoencoderLightning(pl.LightningModule):
         batch_norm,
         learning_rate,
         max_pool=False, 
-        max_pool_kernel_size=2,
-        max_pool_loc=[3],
+        kernel_size_in=5,
+        kernel_size_out=5, 
+        max_pool_kernel_size_in=2,
+        max_pool_loc_in=[3],
+        stride_in=[1],
+        max_pool_kernel_size_out=2,
+        max_pool_loc_out=[3],
+        stride_out=[1],
         log_wandb=False,
         im_dim=21,
         reconstruction_loss='mse',
@@ -36,7 +39,8 @@ class CNNAutoencoderLightning(pl.LightningModule):
         super().__init__()
         self.learning_rate = learning_rate
         params = {
-            'kernel_size': kernel_size,
+            'kernel_size_in': kernel_size_in,
+            'kernel_size_out': kernel_size_out,
             'channels': channels,
             'stride': stride,
             'padding': padding,
@@ -53,12 +57,16 @@ class CNNAutoencoderLightning(pl.LightningModule):
             'log_wandb': log_wandb,
             'im_dim': im_dim,
             'max_pool': max_pool,
-            'max_pool_kernel_size': max_pool_kernel_size,
-            'max_pool_loc': max_pool_loc,
+            'max_pool_kernel_size_in': max_pool_kernel_size_in,
+            'max_pool_kernel_size_out': max_pool_kernel_size_out,
+            'max_pool_loc_in': max_pool_loc_in,
+            'max_pool_loc_out': max_pool_loc_out,
+            'stride_in': stride_in,
+            'stride_out': stride_out,
             'reconstruction_loss': reconstruction_loss
         }
-        assert len(channels) == len(stride) + 1, "channels and stride must be the same length"
-        assert len(stride) == len(kernel_size), "stride and kernel_size must be the same length"
+        assert len(channels) == len(stride_in) == len(stride_out), "channels and stride must be the same length"
+        assert len(stride_in) == len(stride_out) == len(kernel_size_in) == len(kernel_size_out), "stride and kernel_size must be the same length"
         
         self.hparams.update(params)
         self.save_hyperparameters()
@@ -75,7 +83,7 @@ class CNNAutoencoderLightning(pl.LightningModule):
             inner_dim = int((inner_dim - (self.hparams.kernel_size[i] - 1)) / self.hparams.stride[i])
             if self.hparams.max_pool:
                 if i in self.hparams.max_pool_loc:    
-                    inner_dim = int(1 + (inner_dim - self.hparams.max_pool_kernel_size + 1 ) / self.hparams.max_pool_kernel_size )
+                    inner_dim = int(1 + (inner_dim - self.hparams.max_pool_kernel_size_in + 1 ) / self.hparams.max_pool_kernel_size_in[)
     
         print("inner_dim: ", inner_dim)
 
@@ -138,8 +146,8 @@ class CNNAutoencoderLightning(pl.LightningModule):
                 ConvBatch(
                         in_channels = channel_in,
                         out_channels = channel_out,
-                        kernel_size = kernel,
-                        stride = stride,
+                        kernel_size = kernel_size_in[ind], 
+                        stride = stride_in[ind],
                         padding = self.hparams.padding,
                         dilation = self.hparams.dilation,
                         groups = self.hparams.groups,
@@ -154,12 +162,12 @@ class CNNAutoencoderLightning(pl.LightningModule):
 
             if trigger:
                 self.list_dec_conv.append(torch.nn.Upsample(
-                    scale_factor = self.hparams.max_pool_kernel_size))
+                    scale_factor = self.hparams.max_pool_kernel_size_out))
                 trigger = 0
 
-            if (self.hparams.max_pool and ind in self.hparams.max_pool_loc):
+            if (self.hparams.max_pool and ind in self.hparams.max_pool_kernel_size_in):
                 self.list_enc_conv.append(torch.nn.MaxPool3d(
-                    self.hparams.max_pool_kernel_size))
+                    self.hparams.max_pool_kernel_size_in))
                 trigger = 1    
 
             if dropout > 0:
@@ -174,14 +182,14 @@ class CNNAutoencoderLightning(pl.LightningModule):
                 UpConvBatch(
                     in_channels = channel_out,
                     out_channels = channel_in,
-                    kernel_size = kernel,
-                    stride = self.hparams.stride[ind],
+                    stride=stride_out[ind],
+                    kernel_size=kernel_size_out[ind], 
                     padding = self.hparams.padding,
                     dilation = self.hparams.dilation,
                     groups = self.hparams.groups,
                     bias = self.hparams.bias,
                     padding_mode = self.hparams.padding_mode,
-                    output_padding=output_padding,
+                    output_padding=output_padding, 
                     output_layer = output_layer
                 )
             )

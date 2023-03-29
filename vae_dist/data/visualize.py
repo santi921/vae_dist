@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 
 from vae_dist.data.rdkit import xyz2AC_vdW, pdb_to_xyz, get_AC
 from vae_dist.dataset.fields import split_and_filter, pull_fields 
-from vae_dict.data.dictionaries import * 
+from vae_dist.data.dictionaries import *
 
 def filter_xyz_by_distance(xyz, center = [0,0,0], distance = 5):
     xyz = np.array(xyz, dtype = float)

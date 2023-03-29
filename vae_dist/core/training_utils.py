@@ -60,7 +60,7 @@ def construct_model(model, options):
         #g = group.so3_group()
         #g = group.DihedralGroup(4)
         g = group.so3_group()
-        gspace = gspaces.flipRot3dOnR3(maximum_frequency=16) 
+        gspace = gspaces.flipRot3dOnR3(maximum_frequency=64) 
         input_out_reps = 3*[gspace.trivial_repr]
         feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
         feat_type_out = nn.FieldType(gspace,  input_out_reps) 
@@ -70,7 +70,7 @@ def construct_model(model, options):
         #g = group.so3_group()
         #g = group.DihedralGroup(4)
         g = group.so3_group()
-        gspace = gspaces.flipRot3dOnR3(maximum_frequency=16) 
+        gspace = gspaces.flipRot3dOnR3(maximum_frequency=64) 
 
         input_out_reps = 3*[gspace.trivial_repr]
         feat_type_in  = nn.FieldType(gspace,  input_out_reps) 

@@ -23,6 +23,7 @@ class FieldDataset(torch.utils.data.Dataset):
         
         fields, shape, names = pull_fields(root, ret_names=True)
         data = fields.reshape([len(fields), 3, shape[0], shape[1], shape[2]])
+        self.shape = data.shape
         self.dataraw = deepcopy(data)
         self.mags = np.sqrt((data**2).sum(axis=1))
         dim = 3
@@ -31,6 +32,7 @@ class FieldDataset(torch.utils.data.Dataset):
             data = self.mags.reshape([len(fields), 1, shape[0], shape[1], shape[2]])
             dim = 1
             
+
         if log_scale:
 
             if scalar:                      
@@ -63,7 +65,7 @@ class FieldDataset(torch.utils.data.Dataset):
             # get indices of outliers
             # create matrix of same shape as data with values of mean + 3*std
             print(mean + multiplier*std)
-            dummy = np.ones(data.shape) * (mean + multiplier*std)
+            dummy = np.ones(mags.shape) * (mean + multiplier*std)
 
             # outliers are defined as values greater than mean + 3*std
             outliers_filtered = np.where(mags > mean + multiplier*std, dummy, mags)
@@ -74,10 +76,12 @@ class FieldDataset(torch.utils.data.Dataset):
             else:
                 # get ratio between mags and outliers_filtered
                 ratio = outliers_filtered/mags
+                # fluff ratio by copying it 3 times
+                ratio = ratio.reshape([len(fields), 1, shape[0], shape[1], shape[2]])
+                ratio = np.repeat(ratio, 3, axis=1)
                 # multiply data by ratio
                 data = np.multiply(data, ratio)
                 
-
                 
         if standardize:
             mag = np.sqrt((data**2).sum(axis=1))
@@ -114,15 +118,17 @@ class FieldDataset(torch.utils.data.Dataset):
         
         if lower_filter:
             filter_mat = []
-            shape = data.shape
             
-            for i in range(shape[0]):
+            #print(self.shape)
+
+            for i in range(self.shape[0]-1):
+                #print(i)
                 filter_mat.append(
                     filter(
-                        data[i].reshape([1, dim, shape[2], shape[3], shape[4]]),
+                        data[i].reshape([1, dim, self.shape[2], self.shape[3], self.shape[4]]),
                         cutoff_low_percentile=85, 
                         cutoff_high_percentile=False,
-                        dim = dim).reshape([dim, shape[2], shape[3], shape[4]]))
+                        dim = dim).reshape([dim, self.shape[2], self.shape[3], self.shape[4]]))
             filter_mat = np.array(filter_mat)
             data = filter_mat
 
@@ -154,7 +160,7 @@ class FieldDataset(torch.utils.data.Dataset):
         self.max = data.max()
         self.min = data.min()
 
-        self.shape = shape
+        #self.shape = data.shape
         self.scalar = scalar
         self.data = data
         
@@ -194,6 +200,7 @@ class FieldDataset(torch.utils.data.Dataset):
         if not self.augmentation and len(index) == 1:
             channels = 3 
             if self.scalar: channels = 1
+            
             data = data.reshape([channels, self.shape[2], self.shape[3], self.shape[4]])
             
         #if len(index) == 1 and self.augmentation:

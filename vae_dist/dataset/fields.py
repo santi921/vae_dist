@@ -94,10 +94,12 @@ def pull_fields(root, ret_names = False):
     names = []
     for file in os.listdir(root):
         if file.endswith(".dat"):
-            mat, meta = mat_pull(root + file, meta_data=True)
-            shape = [meta["steps_x"], meta["steps_y"], meta["steps_z"]]
+            mat = mat_pull(root + file, meta_data=False)
+            #shape = [meta["steps_x"], meta["steps_y"], meta["steps_z"]]
             mats.append(mat)
             names.append(file)
+    meta = mat_pull(root + file, meta_data=True)
+    shape = [meta["steps_x"], meta["steps_y"], meta["steps_z"]]
     mats = np.array(mats)
     if ret_names: 
         return mats, shape, names
@@ -110,13 +112,13 @@ def mat_pull(file, meta_data=False):
         lines = f.readlines()
 
     if meta_data:
-        
         steps_x = 2 * int(lines[0].split()[2]) + 1
         steps_y = 2 * int(lines[0].split()[3]) + 1
         steps_z = 2 * int(lines[0].split()[4][:-1]) + 1
         x_size = float(lines[0].split()[-3])
         y_size = float(lines[0].split()[-2])
         z_size = float(lines[0].split()[-1])
+
 
         meta_dict = {
             "steps_x": steps_x,
@@ -128,7 +130,7 @@ def mat_pull(file, meta_data=False):
             "first_line": lines[0]
         }
 
-        return mat, meta_dict
+        return meta_dict
     
     else: 
         steps_x = 2 * int(lines[0].split()[2]) + 1

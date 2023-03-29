@@ -19,13 +19,17 @@ class R3CNN(pl.LightningModule):
         feat_type_out, 
         dropout,
         bias, 
-        kernel_size=5, 
+        kernel_size_in=5,
+        kernel_size_out=5, 
         latent_dim=1, 
         max_pool=False, 
         batch_norm=False,
-        max_pool_kernel_size=2,
-        max_pool_loc=[3],
-        stride=[1],
+        max_pool_kernel_size_in=2,
+        max_pool_loc_in=[3],
+        stride_in=[1],
+        max_pool_kernel_size_out=2,
+        max_pool_loc_out=[3],
+        stride_out=[1],
         fully_connected_layers=[64, 64, 64],
         log_wandb=False,
         im_dim=21,
@@ -39,11 +43,11 @@ class R3CNN(pl.LightningModule):
         params = {
             'in_type': feat_type_in,
             'out_type': feat_type_out,
-            'kernel_size': kernel_size,
             'channels': channels,
             'padding': 0,
             'bias': bias,
-            'stride': stride, 
+            'stride_in': stride_in, 
+            'stride_out': stride_out,
             'latent_dim': latent_dim,
             'group': group,
             'gspace': gspace,
@@ -55,13 +59,17 @@ class R3CNN(pl.LightningModule):
             'log_wandb': log_wandb,
             'im_dim': im_dim,
             'max_pool': max_pool,
-            'max_pool_kernel_size': max_pool_kernel_size,
-            'max_pool_loc': max_pool_loc,
+            'kernel_size_in': kernel_size_in,
+            'kernel_size_out': kernel_size_out,
+            'max_pool_kernel_size_in': max_pool_kernel_size_in,
+            'max_pool_kernel_size_out': max_pool_kernel_size_out,
+            'max_pool_loc_in': max_pool_loc_in,
+            'max_pool_loc_out': max_pool_loc_out,
             'reconstruction_loss': reconstruction_loss,
         }
 
-        assert len(channels) == len(stride), "channels and stride must be the same length"
-        assert len(stride) == len(kernel_size), "stride and kernel_size must be the same length"
+        assert len(channels) == len(stride_in) == len(stride_out), "channels and stride must be the same length"
+        assert len(stride_in) == len(stride_out) == len(kernel_size_in) == len(kernel_size_out), "stride and kernel_size must be the same length"
         self.hparams.update(params)
 
         self.list_dec_fully = []
@@ -80,10 +88,10 @@ class R3CNN(pl.LightningModule):
         inner_dim = self.hparams.im_dim
         # number of output channels
         for i in range(len(self.hparams.channels)):
-            inner_dim = int((inner_dim - (self.hparams.kernel_size[i] - 1)) / self.hparams.stride[i])
+            inner_dim = int((inner_dim - (self.hparams.kernel_size_in[i] - 1)) / self.hparams.stride_in[i])
             if self.hparams.max_pool:
-                if i in self.hparams.max_pool_loc:    
-                    inner_dim = int(1 + (inner_dim - self.hparams.max_pool_kernel_size + 1 ) / self.hparams.max_pool_kernel_size )
+                if i in self.hparams.max_pool_loc_in:    
+                    inner_dim = int(1 + (inner_dim - self.hparams.max_pool_kernel_size_in + 1 ) / self.hparams.max_pool_kernel_size_in[)
         
         print("inner_dim: ", inner_dim)
         
@@ -143,14 +151,27 @@ class R3CNN(pl.LightningModule):
     
             print('in_type: {} out_type: {}'.format(in_type, out_type))
             
+
+            if stride_in[ind] == 2: 
+                sigma = None
+                frequencies_cutoff = None
+                rings = None
+            else: 
+                sigma = None
+                frequencies_cutoff = None
+                rings = None
+
             self.encoder_conv_list.append(
                 nn.R3Conv(
                     in_type = in_type, 
                     out_type = out_type, 
-                    kernel_size = kernel_size[ind], 
-                    stride = stride[ind],
+                    kernel_size = kernel_size_in[ind], 
+                    stride = stride_in[ind],
                     padding = self.hparams.padding,
                     bias=self.hparams.bias,
+                    sigma=sigma,
+                    frequencies_cutoff=frequencies_cutoff,
+                    rings=rings
                 )
             )
             if self.hparams.batch_norm:
@@ -168,16 +189,16 @@ class R3CNN(pl.LightningModule):
             if trigger:
                 self.decoder_conv_list.append(R3Upsampling(
                     in_type, 
-                    scale_factor=self.hparams.max_pool_kernel_size, 
+                    scale_factor=self.hparams.max_pool_kernel_size_out, 
                     mode='nearest', 
                     align_corners=False))
                 trigger = 0
 
-            if (self.hparams.max_pool and ind in self.hparams.max_pool_loc):
+            if (self.hparams.max_pool and ind in self.hparams.max_pool_loc_in):
                 self.encoder_conv_list.append(
                     nn.PointwiseAvgPoolAntialiased3D(
                         out_type, 
-                        stride=self.hparams.max_pool_kernel_size,
+                        stride=self.hparams.max_pool_kernel_size_in,
                         sigma = 0.66))
                 trigger = 1    
 
@@ -189,19 +210,32 @@ class R3CNN(pl.LightningModule):
                 self.decoder_conv_list.append(nn.IdentityModule(in_type))
             else: 
                 self.decoder_conv_list.append(nn.ReLU(in_type, inplace=False))
-                #self.decoder_conv_list.append(nn.NormNonLinearity(in_type, 'n_relu'))            
+                     
             if self.hparams.batch_norm:
-                #self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type, affine=False))
+                
                 self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type, affine=True))
+                
+
+            if stride_out[ind] == 2: 
+                sigma = None
+                frequencies_cutoff = None
+                rings = None
+            else: 
+                sigma = None
+                frequencies_cutoff = None
+                rings = None
 
             self.decoder_conv_list.append(
                 nn.R3ConvTransposed(
                     in_type=out_type, 
                     out_type=in_type, 
-                    stride=stride[ind],
-                    kernel_size=kernel_size[ind], 
+                    stride=stride_out[ind],
+                    kernel_size=kernel_size_out[ind], 
                     bias=self.hparams.bias,
-                    output_padding=output_padding
+                    output_padding=output_padding,
+                    sigma=sigma,
+                    frequencies_cutoff=frequencies_cutoff,
+                    rings=rings
                 )
             )
 
@@ -323,7 +357,7 @@ class R3CNN(pl.LightningModule):
             threshold=0.0001, 
             threshold_mode='rel', 
             cooldown=0, 
-            min_lr=0, 
+            min_lr=1e-06, 
             eps=1e-08
             )
         lr_scheduler = {

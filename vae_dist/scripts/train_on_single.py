@@ -23,32 +23,32 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    root = "../../data/cpet_augmented/"
+    root = "../../data/augment_test_5ang_25/"
     epochs = args.epochs
     model_select = args.model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     if model_select == 'escnn' or model_select == 'cnn':        
-        run = wandb.init(project="cnn_dist_single", reinit=True)
+        run = wandb.init(project="cnn_dist_single_25", reinit=True)
     else:
-        run = wandb.init(project="vae_dist_single", reinit=True)
+        run = wandb.init(project="vae_dist_single_25", reinit=True)
     
 
     dataset_vanilla = FieldDataset(
         root, 
         transform=False, 
         augmentation=False,
-        standardize=False,
+        standardize=True,
         lower_filter=True,
-        log_scale=True, 
+        log_scale=False, 
         min_max_scale=True,
-        wrangle_outliers=False,
+        wrangle_outliers=True,
         scalar=False,
         device=device
     )
 
     if model_select == 'escnn':
-        options = json.load(open('./options/options_escnn_default.json'))
+        options = json.load(open('./options/options_escnn_default_25.json'))
         log_save_dir = "./log_version_escnn_1/"
         model = construct_model("escnn", options)
 
@@ -87,8 +87,6 @@ if __name__ == '__main__':
     xavier_init(model)
     #equi_var_init(model)
     
-    #visualize_weight_distribution(model)
-    #visualize_activations(model, print_variance=True)
     # check if there are any inf or nan values in the model
     is_nan = torch.stack([torch.isnan(p).any() for p in model.parameters()]).any()
     print("Model has inf or nan values: ", is_nan)
@@ -120,7 +118,7 @@ if __name__ == '__main__':
         max_epochs=epochs, 
         accelerator='gpu', 
         devices = [0],
-        accumulate_grad_batches=3, 
+        accumulate_grad_batches=5, 
         enable_progress_bar=True,
         gradient_clip_val=0.5,
         callbacks=[early_stop_callback,  
@@ -130,8 +128,7 @@ if __name__ == '__main__':
         default_root_dir=log_save_dir,
         logger=[logger_tb, logger_wb],
         detect_anomaly=True,
-        #pin_memory=True,
-        #precision=16
+        precision=32
     )
     
     trainer.fit(
