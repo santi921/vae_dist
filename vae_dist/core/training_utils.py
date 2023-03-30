@@ -11,6 +11,25 @@ from escnn import gspaces, nn, group
 import pytorch_lightning as pl
 import numpy as np 
 
+
+class CheckBatchGradient(pl.Callback):
+    
+    def on_train_start(self, trainer, model):
+        n = 0
+
+        example_input = model.example_input_array.to(model.device)
+        example_input.requires_grad = True
+
+        model.zero_grad()
+        output = model(example_input)
+        output[n].abs().sum().backward()
+        
+        zero_grad_inds = list(range(example_input.size(0)))
+        zero_grad_inds.pop(n)
+        
+        if example_input.grad[zero_grad_inds].abs().sum().item() > 0:
+            raise RuntimeError("Your model mixes data across the batch dimension!")
+
 class LogParameters(pl.Callback):
     # weight and biases to tensorbard
     def __init__(self):
@@ -32,6 +51,14 @@ class LogParameters(pl.Callback):
             trainer.logger.experiment.add_histogram('Parameters', p, trainer.current_epoch)
             
 
+class InputMonitor(pl.Callback):
+
+    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
+        if (batch_idx + 1) % trainer.log_every_n_steps == 0:
+            x, y = batch
+            logger = trainer.logger
+            logger.experiment.add_histogram("input", x, global_step=trainer.global_step)
+            logger.experiment.add_histogram("target", y, global_step=trainer.global_step)
 
     
 
@@ -51,7 +78,7 @@ def train(model, data_loader, epochs=20):
         print("epoch: {} loss: {}".format(epoch, running_loss))
     
 
-def construct_model(model, options):
+def construct_model(model, options, scalar_field=False):
     """
     Constructs a model based on the model name and options.
     Takes 
@@ -61,13 +88,15 @@ def construct_model(model, options):
         model: pl.LightningModule, the model
     """
     assert model in ['vae', 'cnn', 'escnn', 'escnn_supervised', 'cnn_supervised', 'escnn_regressor', 'escnn_regressor_supervised'], "Model must be vae, cnn, escnn, escnn_supervised, cnn_supervised, escnn_regressor, escnn_regressor_supervised"
-    
+    dim = 3
+    if scalar_field: dim = 1
+
     if model == 'esvae':
         #g = group.so3_group()
         #g = group.DihedralGroup(4)
         g = group.so3_group()
         gspace = gspaces.flipRot3dOnR3(maximum_frequency=64) 
-        input_out_reps = 3*[gspace.trivial_repr]
+        input_out_reps = dim*[gspace.trivial_repr]
         feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
         feat_type_out = nn.FieldType(gspace,  input_out_reps) 
         model = R3VAE(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)
@@ -78,7 +107,7 @@ def construct_model(model, options):
         g = group.so3_group()
         gspace = gspaces.flipRot3dOnR3(maximum_frequency=64) 
 
-        input_out_reps = 3*[gspace.trivial_repr]
+        input_out_reps = dim*[gspace.trivial_repr]
         feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
         feat_type_out = nn.FieldType(gspace,  input_out_reps)  
         model = R3CNN(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)   
@@ -86,7 +115,7 @@ def construct_model(model, options):
     elif model == 'escnn_supervised':
         g = group.so3_group()
         gspace = gspaces.flipRot3dOnR3(maximum_frequency=64) 
-        input_out_reps = 3*[gspace.trivial_repr]
+        input_out_reps = dim*[gspace.trivial_repr]
         output_reps = [gspace.trivial_repr]
         feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
         feat_type_out = nn.FieldType(gspace,  output_reps)  

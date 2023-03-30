@@ -33,7 +33,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     epochs = args.epochs
     model_select = args.model
-    
+    model_select = 'escnn'
     root = "../../data/cpet_augmented/"
     supervised_file = "../../data/protein_data.csv"
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -55,7 +55,6 @@ if __name__ == '__main__':
 
     if model_select == 'escnn' or model_select == 'cnn':        
         run = wandb.init(project="supervised_vae_dist", reinit=True)
-    
     assert model_select in ['escnn', 'cnn'], "Model must be escnn or cnn"
     
     if model_select == 'escnn':
@@ -77,7 +76,7 @@ if __name__ == '__main__':
     
     # load model to gpu
     model.to(device)
-    kaiming_init(model)
+    #kaiming_init(model)
     #xavier_init(model)
     equi_var_init(model)
     
@@ -109,17 +108,18 @@ if __name__ == '__main__':
     logger_wb = WandbLogger(project="{}_supervised_vae_dist".format(model_select), name="test_logs")
 
     trainer = pl.Trainer(
+        auto_lr_find=True,
         max_epochs=epochs, 
         accelerator='gpu', 
         devices = [0],
         accumulate_grad_batches=5, 
         enable_progress_bar=True,
-        log_every_n_steps=10,
-        gradient_clip_val=2.0,
+        gradient_clip_val=1.0,
         callbacks=[early_stop_callback,  
             lr_monitor, 
             log_parameters,
-            InputMonitor()],
+            InputMonitor(),
+            CheckBatchGradient()],
         enable_checkpointing=True,
         default_root_dir=log_save_dir,
         logger=[logger_tb, logger_wb],
@@ -127,16 +127,12 @@ if __name__ == '__main__':
         precision=16
     )
     
-    trainer.fit(
-        model, 
-        dataset_loader_full, 
-        dataset_loader_full
-        )
-
-
-    model.eval()
-    # save state dict
-    print("Saving model to: ", log_save_dir + "/model_supervised_datapoint.ckpt")
-    torch.save(model.state_dict(), log_save_dir + "/model_supervised_datapoint.ckpt")
+    lr_finder = trainer.tuner.lr_find(model, dataset_loader_full)
+    model.hparams.lr = lr_finder.suggestion()
+    print(f'Auto-find model LR: {model.hparams.lr}')
+    
+    # Plot 
+    fig = lr_finder.plot(suggest=True)
+    fig.show()
+    
     run.finish()
-

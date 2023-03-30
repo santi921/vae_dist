@@ -8,6 +8,7 @@ from torch.nn import functional as F
 import torchmetrics
 from vae_dist.core.metrics import *
 
+
 class R3CNNRegressor(pl.LightningModule):
     def __init__(
         self, 
@@ -163,6 +164,9 @@ class R3CNNRegressor(pl.LightningModule):
         self.encoder_fully_net = torch.nn.Sequential(*self.list_enc_fully)
         self.encoder = nn.SequentialModule(*self.encoder_conv_list)
         self.model = nn.SequentialModule(self.encoder)
+        
+        # this will need to be generalized for scalar fields
+        self.example_input_array = torch.rand(1, 3, self.hparams.im_dim, self.hparams.im_dim, self.hparams.im_dim)
 
         summary(self.encoder_fully_net, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim), device="cpu")
         self.train_acc = torchmetrics.Accuracy(task = 'multiclass', num_classes=self.hparams.latent_dim)
@@ -171,9 +175,9 @@ class R3CNNRegressor(pl.LightningModule):
         self.train_f1 = torchmetrics.F1Score(task = 'multiclass', num_classes = self.hparams.latent_dim)
         self.val_f1 = torchmetrics.F1Score(task = 'multiclass', num_classes = self.hparams.latent_dim)
         self.test_f1 = torchmetrics.F1Score(task = 'multiclass', num_classes = self.hparams.latent_dim)
-        self.train_loss = Metrics_crossentropy()
-        self.val_loss = Metrics_crossentropy()
-        self.test_loss = Metrics_crossentropy()
+        self.loss = torch.nn.CrossEntropyLoss()
+
+
     
 
     def encode(self, x):
@@ -190,6 +194,9 @@ class R3CNNRegressor(pl.LightningModule):
         x = self.encode(x)
         return x
 
+    def compute_loss(self, predict, label):
+        loss = self.loss(predict, label)
+        return loss
     
     def shared_step(self, batch, mode):
         batch, label = batch
@@ -199,50 +206,54 @@ class R3CNNRegressor(pl.LightningModule):
         if mode == 'train':
             self.train_acc.update(predict, label)
             self.train_f1.update(predict, label)
-            self.train_loss.update(predict, label)
+            loss = self.compute_loss(predict, label)
+            #self.train_loss.update(predict, label)
         elif mode == 'val':
             self.val_acc.update(predict, label)
             self.val_f1.update(predict, label)
-            self.val_loss.update(predict, label)
+            loss = self.compute_loss(predict, label)
+            #self.val_loss.update(predict, label)
         elif mode == 'test':
             self.test_acc.update(predict, label)
             self.test_f1.update(predict, label)
-            self.test_loss.update(predict, label)
-    
+            loss = self.compute_loss(predict, label)
+            #self.test_loss.update(predict, label)
+        self.log(f"{mode}_loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=len(label))
+        return loss 
+
     def compute_metrics(self, mode):
         if mode == 'train':
             acc = self.train_acc.compute()
             f1 = self.train_f1.compute()
-            loss = self.train_loss.compute()
+            #loss = self.train_loss.compute()
             self.train_acc.reset()
             self.train_f1.reset()
-            self.train_loss.reset()
+            #self.train_loss.reset()
 
         elif mode == 'val':
             acc = self.val_acc.compute()
             f1 = self.val_f1.compute()
-            loss = self.val_loss.compute()
+            #loss = self.val_loss.compute()
             self.val_acc.reset()
             self.val_f1.reset()
-            self.val_loss.reset()
+            #self.val_loss.reset()
 
         elif mode == 'test':
             acc = self.test_acc.compute()
             f1 = self.test_f1.compute()
-            loss = self.test_loss.compute()
+            #loss = self.test_loss.compute()
             self.test_acc.reset()
             self.test_f1.reset()
-            self.test_loss.reset()
+            #self.test_loss.reset()
 
-        return acc, f1, loss
+        return acc, f1
     
     def training_step(self, batch, batch_idx):
-        self.shared_step(batch, mode='train')
+        return self.shared_step(batch, mode='train')
 
     def training_epoch_end(self, outputs):
-        acc, f1, loss = self.compute_metrics(mode='train')
+        acc, f1 = self.compute_metrics(mode='train')
         out_dict = {
-            "train_loss": loss,
             "train_f1": f1,
             "train_acc": acc
         }
@@ -250,12 +261,11 @@ class R3CNNRegressor(pl.LightningModule):
         self.log_dict(out_dict, prog_bar=True)
 
     def test_step(self, batch, batch_idx):
-        self.shared_step(batch, mode='test')
+        return self.shared_step(batch, mode='test')
 
     def test_epoch_end(self, outputs):
-        acc, f1, loss = self.compute_metrics(mode='test')
+        acc, f1 = self.compute_metrics(mode='test')
         out_dict = {
-            "test_loss": loss,
             "test_f1": f1,
             "test_acc": acc
         }
@@ -263,12 +273,11 @@ class R3CNNRegressor(pl.LightningModule):
         self.log_dict(out_dict)
 
     def validation_step(self, batch, batch_idx):
-        self.shared_step(batch, mode='val')
+        return self.shared_step(batch, mode='val')
 
     def validation_epoch_end(self, outputs):
-        acc, f1, loss = self.compute_metrics(mode='val')
+        acc, f1 = self.compute_metrics(mode='val')
         out_dict = {
-            "val_loss": loss,
             "val_f1": f1,
             "val_acc": acc
         }
@@ -282,7 +291,7 @@ class R3CNNRegressor(pl.LightningModule):
             optimizer, 
             mode='max', 
             factor=0.5, 
-            patience=20, 
+            patience=30, 
             verbose=True, 
             threshold=0.0001, 
             threshold_mode='rel', 

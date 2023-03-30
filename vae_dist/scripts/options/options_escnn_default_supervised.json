@@ -1,14 +1,14 @@
 {
     "irreps": null,
-    "channels": [128, 256, 512],
+    "channels": [128, 128, 128],
     "kernel_size_in": [9, 9, 3],
     "stride_in":      [1, 1, 3],
     "max_pool": false, 
-    "max_pool_kernel_size_in": 2, 
-    "max_pool_loc_in": [2],
+    "max_pool_kernel_size_in": 0, 
+    "max_pool_loc_in": [0],
     "max_pool_kernel_size_out": 2, 
     "max_pool_loc_out": [2],
-    "fully_connected_layers": [250, 500, 250],
+    "fully_connected_layers": [500, 500],
     "padding": 0,
     "dilation": 1,
     "groups": 1,
@@ -20,6 +20,6 @@
     "log_wandb": true,
     "im_dim": 21,
     "dropout": 0.0,
-    "learning_rate": 0.0001,
+    "learning_rate": 0.003,
     "beta": 1.0
 }
