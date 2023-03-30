@@ -3,9 +3,11 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 import pytorch_lightning as pl
+from torchsummary import summary
+from torchmetrics import MeanSquaredError, MeanAbsoluteError
+
 from vae_dist.core.layers import UpConvBatch, ConvBatch
 from vae_dist.core.losses import stepwise_inverse_huber_loss, inverse_huber
-from torchsummary import summary
 
 class baselineVAEAutoencoder(pl.LightningModule):
     def __init__(
@@ -44,7 +46,6 @@ class baselineVAEAutoencoder(pl.LightningModule):
         params = {
             'irreps': irreps,
             'channels': channels,
-
             'padding': padding,
             'dilation': dilation,
             'groups': groups,
@@ -69,7 +70,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
             'max_pool_loc_out': max_pool_loc_out,
             'reconstruction_loss': reconstruction_loss
         }
-        assert len(channels) == len(stride_in) == len(stride_out), "channels and stride must be the same length"
+        assert len(channels)-1 == len(stride_in) == len(stride_out), "channels and stride must be the same length"
         assert len(stride_in) == len(stride_out) == len(kernel_size_in) == len(kernel_size_out), "stride and kernel_size must be the same length"
         self.hparams.update(params)
         self.save_hyperparameters()
@@ -83,9 +84,9 @@ class baselineVAEAutoencoder(pl.LightningModule):
         trigger = 0
         inner_dim = im_dim
         for i in range(len(self.hparams.channels)-1):
-            inner_dim = int((inner_dim - (self.hparams.kernel_size[i] - 1)) / self.hparams.stride[i])
+            inner_dim = int((inner_dim - (self.hparams.kernel_size_in[i] - 1)) / self.hparams.stride_in[i])
             if self.hparams.max_pool:
-                if i in self.hparams.max_pool_loc:    
+                if i in self.hparams.max_pool_loc_in:    
                     #inner_dim = int(1 + (inner_dim - self.hparams.max_pool_kernel_size + 1 ) / self.hparams.max_pool_kernel_size )
                     inner_dim = int(1 + (inner_dim - self.hparams.max_pool_kernel_size_in + 1 ) / self.hparams.max_pool_kernel_size_in)
         print("inner_dim: ", inner_dim)
@@ -108,14 +109,14 @@ class baselineVAEAutoencoder(pl.LightningModule):
 
             if self.hparams.batch_norm:
                 self.list_enc_fully.append(torch.nn.BatchNorm1d(h_out))
-                #self.list_enc_fully.append(torch.nn.InstanceNorm1d(h_out))
+
             if self.hparams.dropout > 0:
                 self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
                 self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
             
             if self.hparams.batch_norm:
                 self.list_dec_fully.append(torch.nn.BatchNorm1d(h_in))
-                #self.list_dec_fully.append(torch.nn.InstanceNorm1d(h_in))
+
             if ind == len(self.hparams.fully_connected_layers)-1:
                 self.list_dec_fully.append(torch.nn.LeakyReLU(inplace=False))
             else: 
@@ -151,6 +152,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
                         padding_mode = self.hparams.padding_mode,
                 )
             )
+
             
             output_padding = 0
             if inner_dim%2 == 1 and ind == len(self.hparams.channels)-1:
@@ -162,7 +164,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
 
             if trigger:
                 self.list_dec_conv.append(torch.nn.Upsample(
-                    scale_factor = self.hparams.max_pool_kernel_size_in))
+                    scale_factor = self.hparams.max_pool_kernel_size_out))
                 trigger = 0
 
             if (self.hparams.max_pool and ind in self.hparams.max_pool_loc_in):
@@ -177,19 +179,20 @@ class baselineVAEAutoencoder(pl.LightningModule):
                 output_layer = True
             else:
                 output_layer = False
+
             self.list_dec_conv.append(
                 UpConvBatch(
-                        in_channels = channel_out,
-                        out_channels = channel_in,
-                        stride=stride_out[ind],
-                        kernel_size=kernel_size_out[ind], 
-                        padding = self.hparams.padding,
-                        dilation = self.hparams.dilation,
-                        groups = self.hparams.groups,
-                        bias = self.hparams.bias,
-                        padding_mode = self.hparams.padding_mode,
-                        output_padding=output_padding, 
-                        output_layer = output_layer
+                    in_channels = channel_out,
+                    out_channels = channel_in,
+                    stride=stride_out[ind],
+                    kernel_size=kernel_size_out[ind], 
+                    padding = self.hparams.padding,
+                    dilation = self.hparams.dilation,
+                    groups = self.hparams.groups,
+                    bias = self.hparams.bias,
+                    padding_mode = self.hparams.padding_mode,
+                    output_padding=output_padding, 
+                    output_layer = output_layer
                 )
             )
 
@@ -218,6 +221,14 @@ class baselineVAEAutoencoder(pl.LightningModule):
         summary(self.decoder_conv, (channels[-1], inner_dim, inner_dim, inner_dim), device="cpu")
 
 
+        self.train_rmse = MeanSquaredError(squared=False)
+        self.val_rmse = MeanSquaredError(squared=False)
+        self.test_rmse = MeanSquaredError(squared=False)
+        self.test_mae = MeanAbsoluteError()
+        self.train_mae = MeanAbsoluteError()
+        self.val_mae = MeanAbsoluteError()
+        self.test_mae = MeanAbsoluteError()
+        
 
     def forward(self, x  : torch.Tensor) -> torch.Tensor:
         mu, var = self.encode(x)
@@ -248,6 +259,67 @@ class baselineVAEAutoencoder(pl.LightningModule):
         return self.decoder(x)
 
 
+    def shared_step(self, batch, mode):
+        x = batch
+        x_encoded = self.encoder(x)
+        mu, log_var = self.fc_mu(x_encoded), self.fc_var(x_encoded) # this is how we might change the prior
+        
+        # sample z from q
+        std = torch.exp(log_var / 2)
+        q = torch.distributions.Normal(mu, std)
+        p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
+        z = q.rsample()
+        x_hat = self.decoder(z)
+
+
+        if mode == 'train':
+            self.train_rmse.update(x_hat, x)
+            #self.train_kl.update(p, q)
+            self.train_mae.update(x_hat, x)
+
+        elif mode == 'val':
+            self.val_rmse.update(x_hat, x)
+            #self.val_kl.update(p, q)
+            self.val_mae.update(x_hat, x)
+
+        elif mode == 'test':
+            self.test_rmse.update(x_hat, x)
+            #self.test_kl.update(p, q)
+            self.test_mae.update(x_hat, x)
+            #self.test_mae.update(predict, batch_group)
+            
+        loss = self.loss_function(x, x_hat, q, p)
+        if self.hparams.log_wandb:wandb.log({f"{mode}_loss": loss})
+        self.log(f"{mode}_loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=len(batch))
+        return loss 
+
+    def compute_metrics(self, mode):
+        if mode == 'train':
+            rmse = self.train_rmse.compute()
+            mae = self.train_mae.compute()
+            #kl = self.train_kl.compute()
+            self.train_rmse.reset()      
+            self.train_mae.reset()
+            #self.train_kl.reset()
+
+        elif mode == 'val':
+            rmse = self.val_rmse.compute()
+            mae = self.val_mae.compute()
+            #kl = self.val_kl.compute()
+            self.val_mae.reset()
+            self.val_rmse.reset()
+            #self.val_kl.reset()
+
+        elif mode == 'test':
+            rmse = self.test_rmse.compute()
+            mae = self.test_mae.compute()
+            #kl = self.test_kl.compute()
+            self.test_rmse.reset()
+            self.test_mae.reset()
+            #self.test_kl.reset()
+            
+        return rmse, mae#, kl
+
     def loss_function(self, x, x_hat, q, p): 
         if self.hparams.reconstruction_loss == "mse":
             recon_loss = F.mse_loss(x_hat, x, reduction='mean')
@@ -263,97 +335,54 @@ class baselineVAEAutoencoder(pl.LightningModule):
         
         elif self.hparams.reconstruction_loss == 'inverse_huber': 
             recon_loss = inverse_huber(x_hat, x, reduction='mean')
-        #recon_l_1_2 = torch.sqrt(recon_loss)
-        kl = torch.distributions.kl_divergence(q, p).mean()
-        elbo = (kl + self.hparams.beta * recon_loss)
 
-        return elbo, kl, recon_loss
+        kl = torch.distributions.kl_divergence(p, q).mean()
+        loss = (kl + self.hparams.beta * recon_loss)
+
+        return loss
     
-
     def training_step(self, batch, batch_idx):
-        x = batch
-        x_encoded = self.encoder(x)
-        mu, log_var = self.fc_mu(x_encoded), self.fc_var(x_encoded)
-        
-        # sample z from q
-        std = torch.exp(log_var / 2)
-        q = torch.distributions.Normal(mu, std)
-        p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
-        z = q.rsample()
-        x_hat = self.decoder(z)
-        
-        # kl
-        elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
-        rmse_loss = torch.sqrt(torch.mean((x_hat - batch)**2))
-
-        out_dict = {
-            'elbo_train': elbo,
-            'kl_train': kl,
-            'rmse_train': rmse_loss,
-            #'recon_loss_train': recon_loss,
-            'train_loss': elbo,
-        }
-
-        if self.hparams.log_wandb:wandb.log(out_dict)
-        self.log_dict(out_dict)
-        return elbo
-
+        return self.shared_step(batch, mode='train')
 
     def test_step(self, batch, batch_idx):
-        x = batch
-        x_encoded = self.encoder(x)
-        mu, log_var = self.fc_mu(x_encoded), self.fc_var(x_encoded)
-        
-        # sample z from q
-        std = torch.exp(log_var / 2)
-        q = torch.distributions.Normal(mu, std)
-        p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
-        z = q.rsample()
-        x_hat = self.decoder(z)
-
-        elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
-        rmse_loss = torch.sqrt(torch.mean((x_hat - batch)**2))
-        
-        out_dict = {
-            'elbo_test': elbo,
-            'kl_test': kl,
-            #'recon_loss_test': recon_loss,
-            'rmse_test': rmse_loss,
-            'test_loss': elbo,
-        }
-        
-        if self.hparams.log_wandb:wandb.log(out_dict)
-        self.log_dict(out_dict)
-
-        return elbo
-
-
+        return self.shared_step(batch, mode='test')
+    
     def validation_step(self, batch, batch_idx):
-        x = batch
-        x_encoded = self.encoder(x)
-        mu, log_var = self.fc_mu(x_encoded), self.fc_var(x_encoded)
-        
-        # sample z from q
-        std = torch.exp(log_var / 2)
-        q = torch.distributions.Normal(mu, std)
-        p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
-        z = q.rsample()
-        x_hat = self.decoder(z)
+        return self.shared_step(batch, mode='val')
+    
 
-        elbo, kl, recon_loss = self.loss_function(batch, x_hat, q, p)
-        rmse_loss = torch.sqrt(torch.mean((x_hat - batch)**2))
-
+    def training_epoch_end(self, outputs):
+        rmse, mae= self.compute_metrics(mode='train')
         out_dict = {
-            'elbo_val': elbo,
-            'kl_val': kl,
-            'rmse_val': rmse_loss,
-            #'recon_loss_val': recon_loss,
-            'val_loss': elbo,
-        }
+            'train_rmse': rmse,
+            #'train_kl': kl,
+            'train_mae': mae,
+            #'train_elbo': kl + self.hparams.beta * rmse,
+        }   
         if self.hparams.log_wandb:wandb.log(out_dict)
-        self.log_dict(out_dict)
+        self.log_dict(out_dict, prog_bar=True)
 
-        return elbo
+    def validation_epoch_end(self, outputs):
+        rmse, mae= self.compute_metrics(mode='val')
+        out_dict = {
+            'val_rmse': rmse,
+            #'val_kl': kl,
+            'val_mae': mae,
+            #'val_elbo': kl + self.hparams.beta * rmse,
+        }   
+        if self.hparams.log_wandb:wandb.log(out_dict)
+        self.log_dict(out_dict, prog_bar=True)
+    
+    def test_epoch_end(self, outputs):
+        rmse, mae = self.compute_metrics(mode='test')
+        out_dict = {
+            'test_rmse': rmse,
+            #'test_kl': kl,
+            'test_mae': mae,
+            #'test_elbo': kl + self.hparams.beta * rmse,
+        }   
+        if self.hparams.log_wandb:wandb.log(out_dict)
+        self.log_dict(out_dict, prog_bar=True)
 
 
     def configure_optimizers(self):

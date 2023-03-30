@@ -12,7 +12,7 @@ class Metrics_crossentropy(Metric):
         full_state_update: bool = False
         sum_cross: Tensor
         total: Tensor
-        self.add_state("sum_cross", default=tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("sum_kl", default=tensor(0.0), dist_reduce_fx="sum")
         self.add_state("total", default=tensor(0), dist_reduce_fx="sum")
     def update(self, preds: Tensor, target: Tensor, reduction: str = "sum")-> None:
         #preds = preds if preds.is_floating_point else preds.float()

@@ -77,8 +77,13 @@ if __name__ == '__main__':
     
     # load model to gpu
     model.to(device)
-    kaiming_init(model)
+    # fails rn 
+    #kaiming_init(model)
+    
+    # failing
     #xavier_init(model)
+    
+    # works
     equi_var_init(model)
     
     # check if there are any inf or nan values in the model
@@ -112,7 +117,7 @@ if __name__ == '__main__':
         max_epochs=epochs, 
         accelerator='gpu', 
         devices = [0],
-        accumulate_grad_batches=5, 
+        accumulate_grad_batches=2, 
         enable_progress_bar=True,
         log_every_n_steps=10,
         gradient_clip_val=2.0,

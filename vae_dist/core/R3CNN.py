@@ -2,6 +2,7 @@ from escnn import nn
 import torch, wandb                                                      
 import pytorch_lightning as pl
 
+from torchmetrics import MeanSquaredError, MeanAbsoluteError
 from torchsummary import summary
 from torch.nn import functional as F
 
@@ -92,7 +93,7 @@ class R3CNN(pl.LightningModule):
             if self.hparams.max_pool:
                 if i in self.hparams.max_pool_loc_in:    
                     inner_dim = int(1 + (inner_dim - self.hparams.max_pool_kernel_size_in + 1 ) / self.hparams.max_pool_kernel_size_in)
-        
+    
         print("inner_dim: ", inner_dim)
         
         for ind, h in enumerate(self.hparams.fully_connected_layers):
@@ -138,6 +139,7 @@ class R3CNN(pl.LightningModule):
         self.list_enc_fully.append(torch.nn.LeakyReLU())
 
         for ind in range(len(self.hparams.channels)):
+            
             if ind == 0:
                 in_type  = feat_type_in        
                 channel_out = self.hparams.channels[0]
@@ -247,7 +249,12 @@ class R3CNN(pl.LightningModule):
         self.encoder = nn.SequentialModule(*self.encoder_conv_list)
         self.decoder = nn.SequentialModule(*self.decoder_conv_list)
         self.model = nn.SequentialModule(self.encoder, self.decoder)
-
+        self.train_rmse = MeanSquaredError(squared=False)
+        self.val_rmse = MeanSquaredError(squared=False)
+        self.test_rmse = MeanSquaredError(squared=False)
+        self.train_mae = MeanAbsoluteError()
+        self.val_mae = MeanAbsoluteError()
+        self.test_mae = MeanAbsoluteError()
         summary(self.encoder_fully_net, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim), device="cpu")
         summary(self.decoder_fully_net, tuple([latent_dim]), device="cpu")        
 
@@ -298,52 +305,84 @@ class R3CNN(pl.LightningModule):
             recon_loss = inverse_huber(x_hat, x)
         
         return recon_loss
-    
+
+
+    def shared_step(self, batch, mode):
+        predict = self.forward(batch)
+        batch_group = self.feat_type_in(batch).tensor
+
+        if mode == 'train':
+            self.train_rmse.update(predict, batch_group)
+            self.train_mae.update(predict, batch_group)
+        elif mode == 'val':
+            self.val_rmse.update(predict, batch_group)
+            self.val_mae.update(predict, batch_group)
+        elif mode == 'test':
+            self.test_rmse.update(predict, batch_group)
+            self.test_mae.update(predict, batch_group)
+            
+        loss = self.loss_function(batch_group, predict)
+        if self.hparams.log_wandb:wandb.log({f"{mode}_loss": loss})
+        self.log(f"{mode}_loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=len(batch_group))
+        return loss 
+
+    def compute_metrics(self, mode):
+        if mode == 'train':
+            rmse = self.train_rmse.compute()
+            mae = self.train_mae.compute()
+            self.train_rmse.reset()      
+            self.train_mae.reset()
+
+        elif mode == 'val':
+            rmse = self.val_rmse.compute()
+            mae = self.val_mae.compute()
+            self.val_mae.reset()
+            self.val_rmse.reset()
+
+        elif mode == 'test':
+            rmse = self.test_rmse.compute()
+            mae = self.test_mae.compute()
+            self.test_rmse.reset()
+            self.test_mae.reset()
+            
+        return rmse, mae
+
 
     def training_step(self, batch, batch_idx):
-        predict = self.forward(batch)
-        batch_group = self.feat_type_in(batch).tensor
+        return self.shared_step(batch, mode='train')
 
-        loss = self.loss_function(batch_group, predict)
-        rmse_loss = torch.sqrt(loss)
-        
+    def training_epoch_end(self, outputs):
+        rmse, mae = self.compute_metrics(mode='train')
         out_dict = {
-            "train_loss": loss,
-            "rmse_train": rmse_loss,
-            }     
+            "train_rmse": rmse,
+            "train_mae": mae,
+            }    
         if self.hparams.log_wandb:wandb.log(out_dict)
-        self.log_dict(out_dict)
-          
-        return loss
-
+        self.log_dict(out_dict, prog_bar=True)
 
     def test_step(self, batch, batch_idx):
-        predict = self.forward(batch)
-        batch_group = self.feat_type_in(batch).tensor
-        loss = self.loss_function(batch_group, predict)
-        rmse_loss = torch.sqrt(loss)
+        return self.shared_step(batch, mode='test')
+
+    def test_epoch_end(self, outputs):
+        rmse, mae = self.compute_metrics(mode='test')
         out_dict = {
-            "test_loss": loss,
-            "rmse_test": rmse_loss
-        }
+            "test_rmse": rmse,
+            "test_mae": mae,
+            }   
         if self.hparams.log_wandb:wandb.log(out_dict)
         self.log_dict(out_dict)
-        return loss
-    
 
     def validation_step(self, batch, batch_idx):
-        predict = self.forward(batch)
-        batch_group = self.feat_type_in(batch).tensor
-        loss = self.loss_function(batch_group, predict)
-        rmse_loss = torch.sqrt(loss)
-        out_dict = {
-            "val_loss": loss,
-            "rmse_val": rmse_loss,
-        }
-        if self.hparams.log_wandb:wandb.log(out_dict)
-        self.log_dict(out_dict)
-        return loss
+        return self.shared_step(batch, mode='val')
 
+    def validation_epoch_end(self, outputs):
+        rmse, mae = self.compute_metrics(mode='val')
+        out_dict = {
+            "val_rmse": rmse,
+            "val_mae": mae,
+            }   
+        if self.hparams.log_wandb:wandb.log(out_dict)
+        self.log_dict(out_dict, prog_bar=True)
 
     def configure_optimizers(self):
         #optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
@@ -365,7 +404,6 @@ class R3CNN(pl.LightningModule):
             "monitor": "val_loss"
             }
         return [optimizer], [lr_scheduler]
-
 
     def load_model(self, path):
         self.load_state_dict(torch.load(path, map_location='cuda:0'), strict=False)

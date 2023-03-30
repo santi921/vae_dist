@@ -87,13 +87,11 @@ def construct_model(model, options, scalar_field=False):
     Returns
         model: pl.LightningModule, the model
     """
-    assert model in ['vae', 'cnn', 'escnn', 'escnn_supervised', 'cnn_supervised', 'escnn_regressor', 'escnn_regressor_supervised'], "Model must be vae, cnn, escnn, escnn_supervised, cnn_supervised, escnn_regressor, escnn_regressor_supervised"
+    assert model in ["esvae", 'vae', 'cnn', 'escnn', 'escnn_supervised', 'cnn_supervised', 'escnn_regressor', 'escnn_regressor_supervised'], "Model must be vae, cnn, escnn, escnn_supervised, cnn_supervised, escnn_regressor, escnn_regressor_supervised"
     dim = 3
     if scalar_field: dim = 1
 
     if model == 'esvae':
-        #g = group.so3_group()
-        #g = group.DihedralGroup(4)
         g = group.so3_group()
         gspace = gspaces.flipRot3dOnR3(maximum_frequency=64) 
         input_out_reps = dim*[gspace.trivial_repr]
@@ -102,11 +100,9 @@ def construct_model(model, options, scalar_field=False):
         model = R3VAE(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)
     
     elif model == 'escnn':
-        #g = group.so3_group()
-        #g = group.DihedralGroup(4)
+        
         g = group.so3_group()
         gspace = gspaces.flipRot3dOnR3(maximum_frequency=64) 
-
         input_out_reps = dim*[gspace.trivial_repr]
         feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
         feat_type_out = nn.FieldType(gspace,  input_out_reps)  

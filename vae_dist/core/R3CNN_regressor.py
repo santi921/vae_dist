@@ -206,20 +206,17 @@ class R3CNNRegressor(pl.LightningModule):
         if mode == 'train':
             self.train_acc.update(predict, label)
             self.train_f1.update(predict, label)
-            loss = self.compute_loss(predict, label)
-            #self.train_loss.update(predict, label)
         elif mode == 'val':
             self.val_acc.update(predict, label)
             self.val_f1.update(predict, label)
-            loss = self.compute_loss(predict, label)
-            #self.val_loss.update(predict, label)
         elif mode == 'test':
             self.test_acc.update(predict, label)
             self.test_f1.update(predict, label)
-            loss = self.compute_loss(predict, label)
-            #self.test_loss.update(predict, label)
+        
+        loss = self.compute_loss(predict, label)
         self.log(f"{mode}_loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=len(label))
         return loss 
+
 
     def compute_metrics(self, mode):
         if mode == 'train':

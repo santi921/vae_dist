@@ -23,15 +23,15 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    root = "../../data/cpet_5ang_25/"
+    root = "../../data/cpet/"
     epochs = args.epochs
     model_select = args.model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     if model_select == 'escnn' or model_select == 'cnn':        
-        run = wandb.init(project="cnn_dist_single_25", reinit=True)
+        run = wandb.init(project="cnn_dist_single", reinit=True)
     else:
-        run = wandb.init(project="vae_dist_single_25", reinit=True)
+        run = wandb.init(project="vae_dist_single", reinit=True)
     
 
     dataset_vanilla = FieldDataset(
@@ -39,17 +39,17 @@ if __name__ == '__main__':
         transform=False, 
         augmentation=False,
         standardize=True,
-        lower_filter=True,
-        log_scale=False, 
-        min_max_scale=True,
-        wrangle_outliers=True,
+        lower_filter=False,
+        log_scale=True, 
+        min_max_scale=False,
+        wrangle_outliers=False,
         scalar=False,
         device=device, 
-        offset=0
+        offset=1
     )
 
     if model_select == 'escnn':
-        options = json.load(open('./options/options_escnn_default_25.json'))
+        options = json.load(open('./options/options_escnn_default.json'))
         log_save_dir = "./log_version_escnn_1/"
         model = construct_model("escnn", options)
 
@@ -85,8 +85,8 @@ if __name__ == '__main__':
     model.to(device)
     
     #kaiming_init(model)
-    xavier_init(model)
-    #equi_var_init(model)
+    #xavier_init(model)
+    equi_var_init(model) # works for cnn, escnn
     
     # check if there are any inf or nan values in the model
     is_nan = torch.stack([torch.isnan(p).any() for p in model.parameters()]).any()

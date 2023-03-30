@@ -1,6 +1,6 @@
 {
     "irreps": null,
-    "channels": [128, 128, 128],
+    "channels": [256, 128, 128],
     "kernel_size_in": [9, 9, 3],
     "stride_in":      [1, 1, 3],
     "max_pool": false, 
@@ -19,7 +19,7 @@
     "batch_norm": true,
     "log_wandb": true,
     "im_dim": 21,
-    "dropout": 0.0,
+    "dropout": 0.1,
     "learning_rate": 0.003,
     "beta": 1.0
 }
