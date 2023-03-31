@@ -210,6 +210,11 @@ class CNNAutoencoderLightning(pl.LightningModule):
         self.decoder = nn.Sequential(*modules_dec)
         self.model = nn.Sequential(self.encoder, self.decoder)
         
+        summary(self.encoder_conv, (self.hparams.channels[0], im_dim, im_dim, im_dim), device="cpu")
+        summary(self.encoder, (self.hparams.channels[0], im_dim, im_dim, im_dim), device="cpu")
+        summary(self.decoder_dense, tuple([latent_dim]), device="cpu")
+        summary(self.decoder_conv, (channels[-1], inner_dim, inner_dim, inner_dim), device="cpu")
+
         self.train_rmse = MeanSquaredError(squared=False)
         self.val_rmse = MeanSquaredError(squared=False)
         self.test_rmse = MeanSquaredError(squared=False)
@@ -217,12 +222,6 @@ class CNNAutoencoderLightning(pl.LightningModule):
         self.train_mae = MeanAbsoluteError()
         self.val_mae = MeanAbsoluteError()
         self.test_mae = MeanAbsoluteError()
-        
-        summary(self.encoder_conv, (self.hparams.channels[0], im_dim, im_dim, im_dim), device="cpu")
-        summary(self.encoder, (self.hparams.channels[0], im_dim, im_dim, im_dim), device="cpu")
-        summary(self.decoder_dense, tuple([latent_dim]), device="cpu")
-        summary(self.decoder_conv, (channels[-1], inner_dim, inner_dim, inner_dim), device="cpu")
-
 
     def forward(self, x):
         x = self.encoder(x)
@@ -338,8 +337,8 @@ class CNNAutoencoderLightning(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        #optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
-        optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        #optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, 
             mode='min', 

@@ -7,6 +7,7 @@ from vae_dist.core.R3CNN import R3CNN
 from vae_dist.core.VAE import baselineVAEAutoencoder
 from vae_dist.core.CNN import CNNAutoencoderLightning
 from vae_dist.core.R3CNN_regressor import R3CNNRegressor
+from vae_dist.core.CNN_regressor import CNNRegressor
 from escnn import gspaces, nn, group                                         
 import pytorch_lightning as pl
 import numpy as np 
@@ -92,6 +93,7 @@ def construct_model(model, options, scalar_field=False):
     if scalar_field: dim = 1
 
     if model == 'esvae':
+        print("building esvae...")
         g = group.so3_group()
         gspace = gspaces.flipRot3dOnR3(maximum_frequency=64) 
         input_out_reps = dim*[gspace.trivial_repr]
@@ -100,7 +102,7 @@ def construct_model(model, options, scalar_field=False):
         model = R3VAE(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)
     
     elif model == 'escnn':
-        
+        print("building escnn...")
         g = group.so3_group()
         gspace = gspaces.flipRot3dOnR3(maximum_frequency=64) 
         input_out_reps = dim*[gspace.trivial_repr]
@@ -109,6 +111,7 @@ def construct_model(model, options, scalar_field=False):
         model = R3CNN(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)   
     
     elif model == 'escnn_supervised':
+        print("building escnn_supervised...")
         g = group.so3_group()
         gspace = gspaces.flipRot3dOnR3(maximum_frequency=64) 
         input_out_reps = dim*[gspace.trivial_repr]
@@ -118,10 +121,16 @@ def construct_model(model, options, scalar_field=False):
         model = R3CNNRegressor(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)
 
     elif model == 'cnn':
+        print("building cnn...")
         model = CNNAutoencoderLightning(**options)
 
     elif model == 'vae':
+        print("building vae...")
         model = baselineVAEAutoencoder(**options)
+
+    elif model == 'cnn_supervised':
+        print("building cnn_supervised...")
+        model = CNNRegressor(**options)
 
     return model
 
