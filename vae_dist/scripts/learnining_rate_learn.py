@@ -59,12 +59,12 @@ if __name__ == '__main__':
     
     if model_select == 'escnn':
         options = json.load(open('./options/options_escnn_default_supervised.json'))
-        log_save_dir = "./log_version_escnn/"
+        log_save_dir = "./logs/log_version_escnn/"
         model = construct_model("escnn_supervised", options)
 
     elif model_select == 'cnn':
         options = json.load(open('./options/options_cnn_default_supervised.json'))
-        log_save_dir = "./log_version_cnn/"
+        log_save_dir = "./logs/log_version_cnn/"
         model = construct_model("cnn_supervised", options)
 
     wandb.config.update({

@@ -34,10 +34,10 @@ class training:
             data_dir, 
             transform=False, 
             augmentation=False,
-            standardize=False,
-            lower_filter=True,
+            standardize=True,
+            lower_filter=False,
             log_scale=True, 
-            min_max_scale=True,
+            min_max_scale=False,
             wrangle_outliers=False,
             scalar=False,
             device=device
@@ -57,13 +57,13 @@ class training:
         model_obj.to(self.device)
         
         if self.model ==  'auto': 
-            log_save_dir = "./log_version_auto_1/"
+            log_save_dir = "./logs/log_version_autoenc_sweep/"
         elif self.model == 'vae':
-            log_save_dir = "./log_version_vae_1/"
+            log_save_dir = "./logs/log_version_vae_sweep/"
         elif self.model == 'esvae':
-            log_save_dir = "./log_version_esvae_1/"
+            log_save_dir = "./logs/log_version_esvae_sweep/"
         elif self.model == 'escnn':
-            log_save_dir = "./log_version_escnn_1/"
+            log_save_dir = "./logs/log_version_escnn_sweep/"
         else: 
             raise ValueError("model not found")
         
@@ -174,7 +174,7 @@ if __name__ == "__main__":
     sweep_config["name"] = method + "_" + model + "_" + dataset_name
     sweep_config["method"] = method 
     if(method == "bayes"):
-        sweep_config["metric"] = {"name": "mape_val", "goal": "minimize"}
+        sweep_config["metric"] = {"name": "val_rmse", "goal": "minimize"}
     
     sweep_id = wandb.sweep(sweep_config, project = project_name)
     training_obj = training(

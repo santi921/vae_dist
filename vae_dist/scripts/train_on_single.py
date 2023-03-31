@@ -23,50 +23,63 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    root = "../../data/cpet/"
+    root = "../../data/"
+    dataset = "cpet_augmented"
+    root = root + dataset + "/"
     epochs = args.epochs
     model_select = args.model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     if model_select == 'escnn' or model_select == 'cnn':        
-        run = wandb.init(project="cnn_dist_single", reinit=True)
+        run = wandb.init(project="cnn_dist_{}".format(dataset), reinit=True)
     else:
-        run = wandb.init(project="vae_dist_single", reinit=True)
+        run = wandb.init(project="vae_dist_{}".format(dataset), reinit=True)
     
+    pre_process_options = {
+        "transform": False,
+        "augmentation": False,
+        "standardize": True,
+        "lower_filter": True,
+        "log_scale": True,
+        "min_max_scale": False,
+        "wrangle_outliers": False,
+        "scalar": False,
+        "offset": 1
+    }
 
     dataset_vanilla = FieldDataset(
         root, 
-        transform=False, 
-        augmentation=False,
-        standardize=True,
-        lower_filter=False,
-        log_scale=True, 
-        min_max_scale=False,
-        wrangle_outliers=False,
-        scalar=False,
+        transform=pre_process_options['transform'], 
+        augmentation=pre_process_options['augmentation'],
+        standardize=pre_process_options['standardize'],
+        lower_filter=pre_process_options['lower_filter'],
+        log_scale=pre_process_options['log_scale'], 
+        min_max_scale=pre_process_options['min_max_scale'],
+        wrangle_outliers=pre_process_options['wrangle_outliers'],
+        scalar=pre_process_options['scalar'],
         device=device, 
-        offset=1
+        offset=pre_process_options['offset']
     )
 
     if model_select == 'escnn':
         options = json.load(open('./options/options_escnn_default.json'))
-        log_save_dir = "./log_version_escnn_1/"
+        log_save_dir = "./logs/log_version_escnn_1/"
         model = construct_model("escnn", options)
 
 
     elif model_select == 'esvae':
         options = json.load(open('./options/options_esvae_default.json'))
-        log_save_dir = "./log_version_esvae_1/"
+        log_save_dir = "./logs/log_version_esvae_1/"
         model = construct_model("esvae", options)
 
     elif model_select == 'cnn':
         options = json.load(open('./options/options_cnn_default.json'))
-        log_save_dir = "./log_version_auto_1/"
+        log_save_dir = "./logs/log_version_auto_1/"
         model = construct_model("cnn", options)
 
     elif model_select == 'vae':
         options = json.load(open('./options/options_vae_default.json'))
-        log_save_dir = "./log_version_vae_1/"
+        log_save_dir = "./logs/log_version_vae_1/"
         model = construct_model("vae", options)
 
     else: 
@@ -79,14 +92,26 @@ if __name__ == '__main__':
         "data": root
     })
     wandb.config.update(options)
+    wandb.config.update(pre_process_options)
     
+
     # load model to gpu
-    
     model.to(device)
     
-    #kaiming_init(model)
-    #xavier_init(model)
-    equi_var_init(model) # works for cnn, escnn
+    initializer = options['initializer']
+    if initializer == 'kaiming':
+        kaiming_init(model)
+    elif initializer == 'xavier':
+        xavier_init(model)
+    elif initializer == 'equi_var': # works
+        equi_var_init(model)
+    else:
+        raise ValueError("Initializer must be kaiming, xavier or equi_var")
+    
+    print(">"*40 + "config_settings" + "<"*40)
+    for k, v in options.items():
+        print("{}\t\t\t{}".format(str(k).ljust(20), str(v).ljust(20)))
+    print(">"*40 + "config_settings" + "<"*40)
     
     # check if there are any inf or nan values in the model
     is_nan = torch.stack([torch.isnan(p).any() for p in model.parameters()]).any()

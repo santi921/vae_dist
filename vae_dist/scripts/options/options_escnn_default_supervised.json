@@ -19,6 +19,7 @@
     "batch_norm": true,
     "log_wandb": true,
     "im_dim": 21,
+    "initializer": "equi_var",
     "dropout": 0.1,
     "learning_rate": 0.003,
     "beta": 1.0

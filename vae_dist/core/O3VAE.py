@@ -307,7 +307,7 @@ class R3VAE(pl.LightningModule):
             #self.test_mae.update(predict, batch_group)
             
         loss = self.loss_function(x, x_hat, q, p)
-        if self.hparams.log_wandb:wandb.log({f"{mode}_loss": loss})
+        #if self.hparams.log_wandb:wandb.log({f"{mode}_loss": loss})
         self.log(f"{mode}_loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=len(batch))
         return loss 
 
@@ -356,7 +356,7 @@ class R3VAE(pl.LightningModule):
 
         kl = torch.distributions.kl_divergence(p, q).mean()
         loss = (kl + self.hparams.beta * recon_loss)
-
+        
         return loss
     
     def training_step(self, batch, batch_idx):

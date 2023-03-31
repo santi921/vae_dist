@@ -322,7 +322,7 @@ class R3CNN(pl.LightningModule):
             self.test_mae.update(predict, batch_group)
             
         loss = self.loss_function(batch_group, predict)
-        if self.hparams.log_wandb:wandb.log({f"{mode}_loss": loss})
+        #if self.hparams.log_wandb:wandb.log({f"{mode}_loss": loss})
         self.log(f"{mode}_loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=len(batch_group))
         return loss 
 

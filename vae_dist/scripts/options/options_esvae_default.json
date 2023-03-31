@@ -18,6 +18,7 @@
     "dropout": 0.4,
     "batch_size": 32,
     "batch_norm": true,
+    "initializer": "equi_var",
     "bias": true,
     "beta": 1.0,
     "reconstruction_loss": "mse"

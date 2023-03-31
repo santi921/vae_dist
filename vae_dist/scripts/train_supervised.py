@@ -34,38 +34,53 @@ if __name__ == '__main__':
     epochs = args.epochs
     model_select = args.model
     
-    root = "../../data/cpet_augmented/"
+    root = "../../data/"
+    dataset = "cpet_augmented"
+    root = root + dataset + "/"
     supervised_file = "../../data/protein_data.csv"
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    pre_process_options = {
+        "transform": False,
+        "augmentation": False,
+        "standardize": True,
+        "lower_filter": True,
+        "log_scale": True,
+        "min_max_scale": False,
+        "wrangle_outliers": False,
+        "scalar": False,
+        "offset": 1
+    }
 
     dataset_vanilla = FieldDatasetSupervised(
         root, 
         supervised_file,
-        transform=False, 
-        augmentation=False,
-        standardize=True,
-        lower_filter=False,
-        log_scale=True, 
-        min_max_scale=False,
-        wrangle_outliers=False,
-        scalar=False,
+        transform=pre_process_options['transform'], 
+        augmentation=pre_process_options['augmentation'],
+        standardize=pre_process_options['standardize'],
+        lower_filter=pre_process_options['lower_filter'],
+        log_scale=pre_process_options['log_scale'], 
+        min_max_scale=pre_process_options['min_max_scale'],
+        wrangle_outliers=pre_process_options['wrangle_outliers'],
+        scalar=pre_process_options['scalar'],
         device=device, 
-        offset=1
+        offset=pre_process_options['offset']
     )
 
+
     if model_select == 'escnn' or model_select == 'cnn':        
-        run = wandb.init(project="supervised_vae_dist", reinit=True)
+        run = wandb.init(project="supervised_vae_{}".format(dataset), reinit=True)
     
     assert model_select in ['escnn', 'cnn'], "Model must be escnn or cnn"
     
     if model_select == 'escnn':
         options = json.load(open('./options/options_escnn_default_supervised.json'))
-        log_save_dir = "./log_version_escnn/"
+        log_save_dir = "./logs/log_version_escnn/"
         model = construct_model("escnn_supervised", options)
 
     elif model_select == 'cnn':
         options = json.load(open('./options/options_cnn_default_supervised.json'))
-        log_save_dir = "./log_version_cnn/"
+        log_save_dir = "./logs/log_version_cnn/"
         model = construct_model("cnn_supervised", options)
 
     wandb.config.update({
@@ -77,14 +92,17 @@ if __name__ == '__main__':
     
     # load model to gpu
     model.to(device)
-    # fails rn 
-    #kaiming_init(model)
-    
-    # failing
-    #xavier_init(model)
-    
-    # works
-    equi_var_init(model)
+
+    initializer = options['initializer']
+    if initializer == 'kaiming':
+        kaiming_init(model)
+    elif initializer == 'xavier':
+        xavier_init(model)
+    elif initializer == 'equi_var': # works
+        equi_var_init(model)
+    else:
+        raise ValueError("Initializer must be kaiming, xavier or equi_var")
+
     
     # check if there are any inf or nan values in the model
     is_nan = torch.stack([torch.isnan(p).any() for p in model.parameters()]).any()

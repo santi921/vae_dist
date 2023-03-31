@@ -46,23 +46,23 @@ def main():
 
                     if model_select == 'escnn':
                         options = json.load(open('./options/options_escnn_default.json'))
-                        log_save_dir = "./log_version_escnn_1/"
+                        log_save_dir = "./logs/log_version_escnn_1/"
                         model = construct_model("escnn", options)
 
 
                     elif model_select == 'esvae':
                         options = json.load(open('./options/options_esvae_default.json'))
-                        log_save_dir = "./log_version_esvae_1/"
+                        log_save_dir = "./logs/log_version_esvae_1/"
                         model = construct_model("esvae", options)
 
                     elif model_select == 'auto':
                         options = json.load(open('./options/options_cnn_default.json'))
-                        log_save_dir = "./log_version_auto_1/"
+                        log_save_dir = "./logs/log_version_auto_1/"
                         model = construct_model("auto", options)
 
                     elif model_select == 'vae':
                         options = json.load(open('./options/options_vae_default.json'))
-                        log_save_dir = "./log_version_vae_1/"
+                        log_save_dir = "./logs/log_version_vae_1/"
                         model = construct_model("vae", options)
 
                     else: 

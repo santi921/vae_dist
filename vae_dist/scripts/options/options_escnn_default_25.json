@@ -19,6 +19,7 @@
     "batch_size": 32,
     "batch_norm": true,
     "bias": true,
+    "initializer": "equi_var",
     "beta": 1.0,
     "reconstruction_loss": "mse"
 }

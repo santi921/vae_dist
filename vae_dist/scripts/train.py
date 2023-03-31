@@ -26,45 +26,58 @@ def main():
     epochs = args.epochs
     model_select = args.model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    dataset_name = root.split('/')[-1]
 
     if model_select == 'escnn' or model_select == 'cnn':        
-        run = wandb.init(project="cnn_dist", reinit=True)
+        run = wandb.init(project="cnn_dist_{}".format(dataset_name), reinit=True)
     else:
-        run = wandb.init(project="vae_dist", reinit=True)
+        run = wandb.init(project="vae_dist_{}".format(dataset_name), reinit=True)
     
+    pre_process_options = {
+        "transform": False,
+        "augmentation": False,
+        "standardize": True,
+        "lower_filter": True,
+        "log_scale": True,
+        "min_max_scale": False,
+        "wrangle_outliers": False,
+        "scalar": False,
+        "offset": 1
+    }
 
     dataset_vanilla = FieldDataset(
         root, 
-        transform=False, 
-        augmentation=False,
-        standardize=False,
-        lower_filter=True,
-        log_scale=True, 
-        min_max_scale=True,
-        wrangle_outliers=False,
-        scalar=False,
-        device=device
+        transform=pre_process_options['transform'], 
+        augmentation=pre_process_options['augmentation'],
+        standardize=pre_process_options['standardize'],
+        lower_filter=pre_process_options['lower_filter'],
+        log_scale=pre_process_options['log_scale'], 
+        min_max_scale=pre_process_options['min_max_scale'],
+        wrangle_outliers=pre_process_options['wrangle_outliers'],
+        scalar=pre_process_options['scalar'],
+        device=device, 
+        offset=pre_process_options['offset']
     )
 
     if model_select == 'escnn':
         options = json.load(open('./options/options_escnn_default.json'))
-        log_save_dir = "./log_version_escnn_1/"
+        log_save_dir = "./logs/log_version_escnn_1/"
         model = construct_model("escnn", options)
 
 
     elif model_select == 'esvae':
         options = json.load(open('./options/options_esvae_default.json'))
-        log_save_dir = "./log_version_esvae_1/"
+        log_save_dir = "./logs/log_version_esvae_1/"
         model = construct_model("esvae", options)
 
     elif model_select == 'cnn':
         options = json.load(open('./options/options_cnn_default.json'))
-        log_save_dir = "./log_version_cnn_1/"
+        log_save_dir = "./logs/log_version_cnn_1/"
         model = construct_model("cnn", options)
 
     elif model_select == 'vae':
         options = json.load(open('./options/options_vae_default.json'))
-        log_save_dir = "./log_version_vae_1/"
+        log_save_dir = "./logs/log_version_vae_1/"
         model = construct_model("vae", options)
 
     else: 

@@ -22,6 +22,7 @@
     "beta": 1.0,
     "reconstruction_loss": "mse",
     "irreps": null,
+    "initializer": "equi_var",
     "padding": 0,
     "groups": 1,
     "padding_mode": "zeros",
