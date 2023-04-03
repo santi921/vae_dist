@@ -29,12 +29,10 @@ if __name__ == '__main__':
     epochs = args.epochs
     model_select = args.model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    if model_select == 'escnn' or model_select == 'cnn':        
-        run = wandb.init(project="cnn_dist_{}".format(dataset), reinit=True)
-    else:
-        run = wandb.init(project="vae_dist_{}".format(dataset), reinit=True)
-    
+    # assert that the model is one of the following escnn, cnn, vae, esvae
+    assert model_select in ['escnn', 'cnn', 'vae', 'esvae'], "Model must be one of the following: escnn, cnn, vae, esvae"
+    run = wandb.init(project="{}_dist_{}".format(model_select, dataset), reinit=True)
+   
     pre_process_options = {
         "transform": False,
         "augmentation": False,

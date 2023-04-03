@@ -4,7 +4,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
-from vae_dist.dataset.dataset import FieldDatasetSupervised
+from vae_dist.dataset.dataset import FieldDatasetSupervised, dataset_split_loader
 from vae_dist.core.training_utils import (
     construct_model, 
     LogParameters, 
@@ -55,6 +55,7 @@ if __name__ == '__main__':
     dataset_vanilla = FieldDatasetSupervised(
         root, 
         supervised_file,
+        device=device, 
         transform=pre_process_options['transform'], 
         augmentation=pre_process_options['augmentation'],
         standardize=pre_process_options['standardize'],
@@ -63,7 +64,6 @@ if __name__ == '__main__':
         min_max_scale=pre_process_options['min_max_scale'],
         wrangle_outliers=pre_process_options['wrangle_outliers'],
         scalar=pre_process_options['scalar'],
-        device=device, 
         offset=pre_process_options['offset']
     )
 
@@ -104,18 +104,31 @@ if __name__ == '__main__':
         raise ValueError("Initializer must be kaiming, xavier or equi_var")
 
     
+    print(">"*40 + "config_settings" + "<"*40)
+    for k, v in options.items():
+        print("{}\t\t\t{}".format(str(k).ljust(20), str(v).ljust(20)))
+    print(">"*40 + "config_settings" + "<"*40)
+    
     # check if there are any inf or nan values in the model
     is_nan = torch.stack([torch.isnan(p).any() for p in model.parameters()]).any()
     print("Model has inf or nan values: ", is_nan)
     # check if dataset has any inf or nan values
     print("Dataset has inf or nan values: ", torch.isnan(dataset_vanilla.dataset_to_tensor()).any())
     
-    dataset_loader_full = torch.utils.data.DataLoader(
+    """dataset_loader_full = torch.utils.data.DataLoader(
         dataset_vanilla, 
         batch_size=64,
         shuffle=False,
         num_workers=0
-    )
+    )"""
+
+    dataset_full, dataset_train, dataset_val = dataset_split_loader(
+        dataset_vanilla, 
+        train_split = 0.8, 
+        batch_size = 64, 
+        supervised=True)
+    
+
 
     lr_monitor = LearningRateMonitor(logging_interval='step')
     # create early stopping callback
@@ -126,6 +139,7 @@ if __name__ == '__main__':
         verbose=False,
         mode='max'
     )
+
 
     log_parameters = LogParameters()
     logger_tb = TensorBoardLogger(log_save_dir, name="test_logs")
@@ -152,8 +166,8 @@ if __name__ == '__main__':
     
     trainer.fit(
         model, 
-        dataset_loader_full, 
-        dataset_loader_full
+        dataset_train, 
+        dataset_val
         )
 
 

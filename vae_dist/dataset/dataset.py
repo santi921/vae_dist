@@ -5,6 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import OneHotEncoder
 from copy import deepcopy
+from torch.utils.data import DataLoader, Subset
+
 from vae_dist.dataset.fields import pull_fields, filter, helmholtz_hodge_decomp_approx, pull_fields_w_label
 
 
@@ -407,7 +409,7 @@ class FieldDatasetSupervised(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
 
-        if isinstance(index, int):
+        if isinstance(index, int) or isinstance(index, np.int64):
             index = [index]
 
         if self.augmentation:
@@ -445,11 +447,13 @@ class FieldDatasetSupervised(torch.utils.data.Dataset):
 
 
 
-def dataset_split_loader(dataset, train_split, batch_size=1, num_workers=0, shuffle=True):
+
+def dataset_split_loader(dataset, train_split, batch_size=8, num_workers=0, shuffle=False, supervised=True):
 
     # train test split - randomly split dataset into train and test
     train_size = int(train_split * len(dataset))
     test_size = len(dataset) - train_size
+
     train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
 
 
@@ -475,4 +479,3 @@ def dataset_split_loader(dataset, train_split, batch_size=1, num_workers=0, shuf
     )
     
     return dataset_loader_full, dataset_loader_train, dataset_loader_test
- 

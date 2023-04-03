@@ -64,7 +64,6 @@ def main():
         log_save_dir = "./logs/log_version_escnn_1/"
         model = construct_model("escnn", options)
 
-
     elif model_select == 'esvae':
         options = json.load(open('./options/options_esvae_default.json'))
         log_save_dir = "./logs/log_version_esvae_1/"
@@ -84,6 +83,7 @@ def main():
         # throw error
         print("Model not found")
         return
+    
     wandb.config.update({
         "model": model_select,
         "epochs": epochs,
@@ -98,7 +98,11 @@ def main():
     print("Model has inf or nan values: ", is_nan)
     # check if dataset has any inf or nan values
     print("Dataset has inf or nan values: ", torch.isnan(dataset_vanilla.dataset_to_tensor()).any())
-    dataset_loader_full, dataset_loader_train, dataset_loader_test= dataset_split_loader(dataset_vanilla, train_split=0.8, num_workers=0)
+    dataset_loader_full, dataset_loader_train, dataset_loader_test= dataset_split_loader(
+        dataset_vanilla, 
+        train_split=0.8, 
+        batch_size=64, 
+        num_workers=0)
 
 
     log_parameters = LogParameters()
@@ -120,15 +124,15 @@ def main():
         accumulate_grad_batches=3, 
         enable_progress_bar=True,
         gradient_clip_val=0.5,
-        callbacks=[early_stop_callback,  
+        callbacks=[
+            early_stop_callback,  
             lr_monitor, 
             log_parameters],
         enable_checkpointing=True,
         default_root_dir=log_save_dir,
         logger=[logger_tb, logger_wb],
         detect_anomaly=True,
-        #pin_memory=True,
-        #precision=16
+        precision=16
     )
 
     trainer.fit(

@@ -10,15 +10,23 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping
 
 from vae_dist.core.intializers import *
-from vae_dist.dataset.dataset import FieldDataset, dataset_split_loader
+from vae_dist.dataset.dataset import FieldDatasetSupervised, dataset_split_loader
 from vae_dist.core.training_utils import construct_model_hyper, hyperparameter_dicts, LogParameters
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
+def set_enviroment():
+    from torch.multiprocessing import set_start_method
+    torch.set_float32_matmul_precision("high")
+    try:
+        set_start_method('spawn')
+    except RuntimeError:
+        pass
 
 class training: 
     def __init__(
             self, 
             data_dir, 
+            supervised_file,
             model, 
             device, 
             transform=False, 
@@ -44,22 +52,29 @@ class training:
         self.lower_filter = lower_filter
         self.standardize = standardize
         self.aug = augmentation
-
         self.data_dir = data_dir   
+        self.supervised_file = supervised_file
         
 
         print("dataset parameters")
         print("augmentation: ", self.aug)
         print("standardize: ", self.standardize)
         print("log_scale: ", self.log_scale)
+        print("min_max_scale: ", self.min_max_scale)
+        print("wrangle_outliers: ", self.wrangle_outliers)
+        print("scalar: ", self.scalar)
+        print("offset: ", self.offset)
         print("model: ", self.model)
         print("device: ", self.device)
         print("data_dir: ", self.data_dir)
+        print("supervised_file: ", self.supervised_file)
         print("project: ", self.project)
 
 
-        dataset = FieldDataset(
+        dataset = FieldDatasetSupervised(
             data_dir, 
+            supervised_file,
+            device=self.device,
             transform=self.transform,
             augmentation=self.aug,
             standardize=self.standardize,
@@ -68,9 +83,8 @@ class training:
             min_max_scale=self.min_max_scale,
             wrangle_outliers=self.wrangle_outliers,
             scalar=self.scalar,
-            device=self.device,
             offset=self.offset
-            )
+        )
         
         # check if dataset has any inf or nan values
         print("Dataset has inf or nan values: ", torch.isnan(dataset.dataset_to_tensor()).any())
@@ -88,22 +102,18 @@ class training:
         
         initializer = config['initializer']
         if initializer == 'kaiming':
-            kaiming_init(model)
+            kaiming_init(model_obj)
         elif initializer == 'xavier':
-            xavier_init(model)
-        elif initializer == 'equi_var': # works
-            equi_var_init(model)
+            xavier_init(model_obj)
+        elif initializer == 'equi_var': 
+            equi_var_init(model_obj)
         else:
             raise ValueError("Initializer must be kaiming, xavier or equi_var")
         
-        if self.model ==  'auto': 
-            log_save_dir = "./logs/log_version_autoenc_sweep/"
-        elif self.model == 'vae':
-            log_save_dir = "./logs/log_version_vae_sweep/"
-        elif self.model == 'esvae':
-            log_save_dir = "./logs/log_version_esvae_sweep/"
-        elif self.model == 'escnn':
-            log_save_dir = "./logs/log_version_escnn_sweep/"
+        if self.model ==  'cnn_supervised': 
+            log_save_dir = "./logs/log_supervised_autoenc_sweep/"
+        elif self.model == 'escnn_supervised':
+            log_save_dir = "./logs/log_supervised_escnn_sweep/"
         else: 
             raise ValueError("model not found")
         
@@ -122,12 +132,13 @@ class training:
 
         lr_monitor = LearningRateMonitor(logging_interval='step')
         trainer = pl.Trainer(
-            max_epochs=config['epochs'], 
+            max_epochs=config['max_epochs'], 
             accelerator='gpu', 
             devices = [0],
             accumulate_grad_batches=3, 
             enable_progress_bar=True,
-            gradient_clip_val=0.5,
+            log_every_n_steps=10,
+            gradient_clip_val=1.0,
             callbacks=[early_stop_callback,  
                 lr_monitor, 
                 log_parameters],
@@ -142,38 +153,44 @@ class training:
 
 
     def train(self):
-
         with wandb.init(project=self.project) as run:
             config = wandb.config
             model_obj, trainer, log_save_dir = self.make_model(config)
             print("-" * 20 + "Training" + "-" * 20)
+            config.update(
+                {
+                    "aug": self.aug, 
+                    "standardize": self.standardize, 
+                    "lower_filter": self.lower_filter,
+                    "transform": self.transform,
+                    "log_scale": self.log_scale, 
+                    "min_max_scale": self.min_max_scale,
+                    "wrangle_outliers": self.wrangle_outliers,
+                    "scalar": self.scalar,
+                    "offset": self.offset,
+                    "model": self.model, 
+                    "device": self.device, 
+                    "data_dir": self.data_dir
+                    }
+            )
             trainer.fit(
                 model_obj, 
                 self.data_loader_train, 
                 self.data_loader_test
             
                 )
-            # update config to include dataset parameters
-            config.update(
-                {"aug": self.aug, 
-                 "standardize": self.standardize, 
-                 "log_scale": self.log_scale, 
-                 "model": self.model, 
-                 "device": self.device, 
-                 "data_dir": self.data_dir})
+                        
+            
             model_obj.eval()
             # save state dict
             torch.save(model_obj.state_dict(), log_save_dir + "/model_1.ckpt")
-            # save model
-            #torch.save(model_obj, log_save_dir + "/model_1.pt")
             run.finish() 
 
-            
-        run.finish()
 
 
 if __name__ == "__main__":
 
+    set_enviroment()
 
     parser = argparse.ArgumentParser(description='options for hyperparam tune')
     parser.add_argument(
@@ -182,6 +199,14 @@ if __name__ == "__main__":
         dest="dataset",
         default='../../data/cpet_augmented/',
         help="dataset to use",
+    )
+
+    parser.add_argument(
+        "-supervised_file",
+        action="store",
+        dest="super_file",
+        default='../../data/protein_data.csv',
+        help="dataset to use, labels",
     )
 
     parser.add_argument(
@@ -196,27 +221,33 @@ if __name__ == "__main__":
         "-model",
         action="store",
         dest="model",
-        default="auto",
+        default="cnn_supervised",
         help="model",
     )
 
-
+    parser.add_argument(
+        "-im_size", 
+        action="store",
+        dest="im_size",
+        default=21,
+        help="image mesh size"
+    )
     
-    pca_tf = True
     method = "bayes" 
-    project_name = "vae_dist_sweep"
-    
+    project_name = "vae_dist_supervised_sweep"
     sweep_config = {}
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     results = parser.parse_args()
     model = str(results.model)
     data_dir = str(results.dataset)
-    #dataset_int = int(results.dataset)
+    super_file = str(results.super_file)
     count = int(results.count)
+    image_size = int(results.im_size)
     dataset_name = str(results.dataset).split("/")[-1]
     
-    dict_hyper = hyperparameter_dicts(image_size = 21)
+    assert model in ["cnn_supervised", "escnn_supervised"], "supervised sweep requires cnn_supervised or escnn_supervised"
+    dict_hyper = hyperparameter_dicts(image_size = image_size)
     
     sweep_config["parameters"] = dict_hyper[model]
     sweep_config["name"] = method + "_" + model + "_" + dataset_name
@@ -241,10 +272,11 @@ if __name__ == "__main__":
     sweep_id = wandb.sweep(sweep_config, project = project_name)
     training_obj = training(
         data_dir, 
+        super_file,
         model = model, 
         device = device,
         transform=pre_process_options['transform'],
-        aug=pre_process_options['augmentation'],
+        augmentation=pre_process_options['augmentation'],
         standardize=pre_process_options['standardize'],
         lower_filter=pre_process_options['lower_filter'],
         log_scale=pre_process_options['log_scale'], 

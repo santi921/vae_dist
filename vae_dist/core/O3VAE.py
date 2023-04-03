@@ -411,11 +411,14 @@ class R3VAE(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        
+        #optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
+
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, 
             mode='min', 
             factor=0.1, 
-            patience=10, 
+            patience=20, 
             verbose=True, 
             threshold=0.0001, 
             threshold_mode='rel', 

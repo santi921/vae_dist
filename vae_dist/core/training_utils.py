@@ -31,6 +31,7 @@ class CheckBatchGradient(pl.Callback):
         if example_input.grad[zero_grad_inds].abs().sum().item() > 0:
             raise RuntimeError("Your model mixes data across the batch dimension!")
 
+
 class LogParameters(pl.Callback):
     # weight and biases to tensorbard
     def __init__(self):
@@ -62,7 +63,6 @@ class InputMonitor(pl.Callback):
             logger.experiment.add_histogram("target", y, global_step=trainer.global_step)
 
     
-
 def train(model, data_loader, epochs=20):
     opt = torch.optim.Adam(model.parameters(),
                              lr = 1e-1,
@@ -135,7 +135,7 @@ def construct_model(model, options, scalar_field=False):
     return model
 
 
-def construct_model_hyper(model, options):
+def construct_model_hyper(model, options, im_dim=21):
     """
     Constructs a model based on the model name and options.
     Takes 
@@ -144,16 +144,15 @@ def construct_model_hyper(model, options):
     Returns
         model: pl.LightningModule, the model
     """
+    options_non_wandb = {
+        "log_wandb": True,
+        "im_dim": im_dim,
+        "groups": 1,
+        "dilation": 1,
+    }
+
     if model == 'esvae':
-        options_non_wandb = {
-            "log_wandb": True,
-            "im_dim": 21,
-            "activation": "relu",
-            "groups": 1,
-            "padding": 0,
-            "dilation": 1,
-            "irreps": None 
-        }
+        print("building esvae...")
         g = group.o3_group()
         gspace = gspaces.flipRot3dOnR3(maximum_frequency=10) 
         input_out_reps = 3*[gspace.trivial_repr]
@@ -164,20 +163,10 @@ def construct_model_hyper(model, options):
         model = R3VAE(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)
     
     elif model == 'escnn':
-        options_non_wandb = {
-            "log_wandb": True,
-            "im_dim": 21,
-            "activation": "relu",
-            "groups": 1,
-            "padding": 0,
-            "dilation": 1,
-            "irreps": None 
-        }
+        print("building escnn...")
         g = group.o3_group()
         gspace = gspaces.flipRot3dOnR3(maximum_frequency=10) 
-        #gspace = gspace.no_base_space(g)
         input_out_reps = 3*[gspace.trivial_repr]
-        #kernel_size = 5
         feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
         feat_type_out = nn.FieldType(gspace,  input_out_reps)  
         options.update(options['architecture'])
@@ -185,212 +174,406 @@ def construct_model_hyper(model, options):
         model = R3CNN(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)   
 
     elif model == 'auto':
-        options_non_wandb = {
-            "log_wandb": True,
-            "im_dim": 21,
-            "activation": "relu",
-            "groups": 1,
-            "padding": 0,
-            "dilation": 1,
-            "irreps": None 
-        }
+        print("building autoencoder...")
         options.update(options['architecture'])
         options.update(options_non_wandb)
         model = CNNAutoencoderLightning(**options)
 
     elif model == 'vae':
-        options_non_wandb = {
-            "log_wandb": True,
-            "im_dim": 21,
-            "activation": "relu",
-            "groups": 1,
-            "padding": 0,
-            "dilation": 1,
-            "irreps": None 
-        }
+        print("building vae...")
         options.update(options['architecture'])
         options.update(options_non_wandb)
         model = baselineVAEAutoencoder(**options)
 
+    elif model == 'cnn_supervised':
+        print("building cnn supervised...")
+        options.update(options['architecture'])
+        options.update(options_non_wandb)
+        model = CNNRegressor(**options)
+
+    elif model == 'escnn_supervised':
+        print("building escnn supervised...")
+        g = group.so3_group()
+        gspace = gspaces.flipRot3dOnR3(maximum_frequency=64) 
+        input_out_reps = 3*[gspace.trivial_repr]
+        output_reps = [gspace.trivial_repr]
+        feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
+        feat_type_out = nn.FieldType(gspace,  output_reps) 
+        options.update(options['architecture'])
+        options.update(options_non_wandb) 
+        model = R3CNNRegressor(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)
+
     return model
 
 
-def hyperparameter_dicts():
-
+def hyperparameter_dicts(image_size = 21):
+    assert image_size == 21 or image_size==51, "image size must be 21 or 51"
     dict_ret = {}
     
     dict_escnn = {
-        "architecture": {"values":[
-                    {
-                        "channels": [32, 64, 128, 256, 512],
-                        "kernel_size": [4, 3, 3, 3, 3],
-                        "stride":      [1, 1, 1, 1, 1],
-                        "max_pool": True, 
-                        "max_pool_kernel_size": 2, 
-                        "max_pool_loc": [2],
-                        "padding_mode": "zeros"
-                    },
-                    {
-                        "channels": [32, 64, 128],
-                        "kernel_size": [4, 5, 4],
-                        "stride":      [1, 1, 1],
-                        "max_pool": True, 
-                        "max_pool_kernel_size": 2, 
-                        "max_pool_loc": [1, 3],
-                        "padding_mode": "zeros"
-                    },
-
-                    ]
-                },
+        "initializer": {"values": ["equi_var", "xavier", "kaiming"]},
         "bias": {"values": [True]},
-        "epochs": {"values": [100, 500, 1000]},
+        "max_epochs": {"values": [100, 500, 1000]},
         "latent_dim": {"values": [2, 5, 10, 25]},
         "fully_connected_layers": {"values": [[1300, 10], [100], [100, 50, 10], [50]]},
         "batch_norm": {"values": [True, False]},
         "dropout": {'values': [0.0, 0.1, 0.25, 0.4]},
         "learning_rate": {"min": 0.05, "max": 0.5, "distribution": "log_uniform_values"},   
         "reconstruction_loss": {"values": ["mse", "l1", "huber", "inverse_huber", "many_step_inverse_huber"]},
-
-
+        "padding": {"values": [0]},
     }
     
     dict_esvae = {
+        "initializer": {"values": ["equi_var", "xavier", "kaiming"]},
         "beta": {"values": [0.001, 0.01,1, 10, 100]},
-        "architecture": {"values":[
-                    {
-                        "channels": [32, 64, 128, 256, 512],
-                        "kernel_size": [4, 3, 3, 3, 3],
-                        "stride":      [1, 1, 1, 1, 1],
-                        "max_pool": True, 
-                        "max_pool_kernel_size": 2, 
-                        "max_pool_loc": [2],
-                        "padding_mode": "zeros"
-                    },
-
-                    {
-                        "channels": [32, 64, 128],
-                        "kernel_size": [4, 5, 4],
-                        "stride":      [1, 1, 1],
-                        "max_pool": True, 
-                        "max_pool_kernel_size": 2, 
-                        "max_pool_loc": [1, 3],
-                        "padding_mode": "zeros"
-                    },
-
-                    ]
-                },
         "bias": {"values": [True]},
-        "epochs": {"values": [100, 500, 1000]},
+        "max_epochs": {"values": [100, 500, 1000]},
         "latent_dim": {"values": [2, 5, 10, 25]},
         "fully_connected_layers": {"values": [[100, 10], [100], [100, 50, 10], [50]]},
         "batch_norm": {"values": [True, False]},
         "dropout": {'values': [0.0, 0.1, 0.25, 0.4]},
         "learning_rate": {"min": 0.05, "max": 0.5, "distribution": "log_uniform_values"},   
         "reconstruction_loss": {"values": ["mse", "l1", "huber", "inverse_huber", "many_step_inverse_huber"]},
+        "padding": {"values": [0]},
     }
 
     dict_vae = {
+        "initializer": {"values": ["equi_var", "xavier", "kaiming"]},
         "beta": {"values": [0.001, 0.01,1, 10, 100]},
-         "architecture": {"values":[
-                    {
-                        "channels": [3, 32, 64, 128, 256, 512],
-                        "kernel_size": [5, 4, 3, 2, 2],
-                        "stride":      [1, 1, 1, 1, 1],
-                        "max_pool": True, 
-                        "max_pool_kernel_size": 2, 
-                        "max_pool_loc": [2],
-                        "padding_mode": "zeros"
-                    },
-                    {
-                        "channels": [3, 8, 16, 32, 64, 128],
-                        "kernel_size": [5, 4, 3, 2, 2],
-                        "stride":      [1, 1, 1, 1, 1],
-                        "max_pool": True, 
-                        "max_pool_kernel_size": 2, 
-                        "max_pool_loc": [2],
-                        "padding_mode": "zeros"
-                    },
-                    {
-                        "channels": [3, 32, 64, 128],
-                        "kernel_size": [4, 5, 4],
-                        "stride":      [1, 1, 1],
-                        "max_pool": True, 
-                        "max_pool_kernel_size": 2, 
-                        "max_pool_loc": [1, 3],
-                        "padding_mode": "zeros"
-                    },
-                    {
-                        "channels": [3, 32, 64, 128, 256, 512],
-                        "kernel_size": [2, 2, 2, 2, 2],
-                        "stride":      [1, 1, 1, 1, 1],
-                        "max_pool": True, 
-                        "max_pool_kernel_size": 2, 
-                        "max_pool_loc": [0, 2],
-                        "padding_mode": "zeros"
-                    }
-                    ]
-                },
         "bias": {"values": [True]},
-        "epochs": {"values": [100, 500, 1000]},
+        "max_epochs": {"values": [100, 500, 1000]},
         "latent_dim": {"values": [2, 5, 10, 25]},
         "fully_connected_layers": {"values": [[100, 10], [100], [100, 50, 10], [50]]},
         "batch_norm": {"values": [True, False]},
         "dropout": {'values': [0.0, 0.1, 0.25, 0.4]},
         "learning_rate": {"min": 0.05, "max": 0.5, "distribution": "log_uniform_values"},   
+        "padding": {"values": [0]},
     }
 
     dict_auto = {
-        "architecture": {"values":[
-                    {
-                        "channels": [3, 32, 64, 128, 256, 512],
-                        "kernel_size": [5, 4, 3, 2, 2],
-                        "stride":      [1, 1, 1, 1, 1],
-                        "max_pool": True, 
-                        "max_pool_kernel_size": 2, 
-                        "max_pool_loc": [2],
-                        "padding_mode": "zeros"
-                    },
-                    {
-                        "channels": [3, 8, 16, 32, 64, 128],
-                        "kernel_size": [5, 4, 3, 2, 2],
-                        "stride":      [1, 1, 1, 1, 1],
-                        "max_pool": True, 
-                        "max_pool_kernel_size": 2, 
-                        "max_pool_loc": [2],
-                        "padding_mode": "zeros"
-                    },
-                    {
-                        "channels": [3, 32, 64, 128],
-                        "kernel_size": [4, 5, 4],
-                        "stride":      [1, 1, 1],
-                        "max_pool": True, 
-                        "max_pool_kernel_size": 2, 
-                        "max_pool_loc": [1, 3],
-                        "padding_mode": "zeros"
-                    },
-                    {
-                        "channels": [3, 32, 64, 128, 256, 512],
-                        "kernel_size": [2, 2, 2, 2, 2],
-                        "stride":      [1, 1, 1, 1, 1],
-                        "max_pool": True, 
-                        "max_pool_kernel_size": 2, 
-                        "max_pool_loc": [0, 2],
-                        "padding_mode": "zeros"
-                    }
-                    ]
-                },
+        "initializer": {"values": ["equi_var", "xavier", "kaiming"]},
         "bias": {"values": [True]},
-        "epochs": {"values": [100, 500, 1000]},
+        "max_epochs": {"values": [100, 500, 1000]},
         "latent_dim": {"values": [2, 5, 10, 25]},
         "fully_connected_layers": {"values": [[100, 10], [100], [100, 50, 10], [50]]},
         "batch_norm": {"values": [True, False]},
         "dropout": {'values': [0.0, 0.1, 0.25, 0.4]},
         "learning_rate": {"min": 0.05, "max": 0.5, "distribution": "log_uniform_values"},   
+        "padding": {"values": [0]},
     }
+
+    dict_cnn_supervised = {
+        "initializer": {"values": ["equi_var", "xavier", "kaiming"]},
+        "irreps": {"values": [None]},
+        "fully_connected_layers": {"values": [[100, 10], [100], [100, 50, 10], [50]]},
+        "batch_norm": {"values": [True, False]},
+        "dropout": {'values': [0.0, 0.1, 0.25, 0.4]},
+        "learning_rate": {"min": 0.001, "max": 0.05, "distribution": "log_uniform_values"},
+        "padding": {"values": [0]},
+        "padding_mode": {"values": ["zeros"]},
+        "bias": {"values": [True]},
+        "max_epochs": {"values": [100, 500, 1000]}, 
+        "latent_dim": {"values": [3]},
+        "activation": {"values": ["relu"]},
+        "log_wandb": {"values": [True]},  
+    }
+
+
+    dict_escnn_supervised = {
+        "initializer": {"values": ["equi_var", "xavier", "kaiming"]},
+        "irreps": {"values": [None]},
+        "fully_connected_layers": {"values": [[100, 10], [100], [100, 50, 10], [50]]},
+        "batch_norm": {"values": [True, False]},
+        "dropout": {'values': [0.0, 0.1, 0.25, 0.4]},
+        "learning_rate": {"min": 0.001, "max": 0.05, "distribution": "log_uniform_values"},
+        "padding": {"values": [0]},
+        "padding_mode": {"values": ["zeros"]},
+        "bias": {"values": [True]},
+        "max_epochs": {"values": [100, 500, 1000]}, 
+        "latent_dim": {"values": [3]},
+        "activation": {"values": ["relu"]},
+        "log_wandb": {"values": [True]},  
+    }
+
+
+    if image_size == 21:
+        dict_cnn_supervised["architecture"] = \
+        {"values":[
+            {
+                "channels": [3, 256, 128, 128], 
+                "kernel_size_in": [9, 9, 3],
+                "stride_in": [1, 1, 3],
+                "max_pool": False,
+                "max_pool_kernel_size_in": [0],
+                "max_pool_loc_in": [0],
+                "padding": [0],
+                "padding_mode": "zeros",
+            },
+            {
+                "channels": [3, 32, 64, 128],
+                "kernel_size_in": [4, 5, 4],
+                "stride_in":      [1, 1, 1],
+                "max_pool": True, 
+                "max_pool_kernel_size_in": 2, 
+                "max_pool_loc_in": [1, 3],
+                "padding_mode": "zeros"
+            },
+            {
+                "channels": [3, 32, 32, 64, 64, 256],
+                "kernel_size_in": [5, 5, 5, 5, 5],
+                "stride_in":      [1, 1, 1, 1, 1],
+                "max_pool": False, 
+                "max_pool_kernel_size_in": 2, 
+                "max_pool_loc_in": [2],
+                "padding_mode": "zeros"
+            },
+            ]
+        }
+        dict_escnn_supervised["architecture"] = \
+        {
+            "values": [
+            {
+                "channels": [256, 128, 128], 
+                "kernel_size_in": [9, 9, 3],
+                "stride_in": [1, 1, 3],
+                "max_pool": False,
+                "max_pool_kernel_size_in": [0],
+                "max_pool_loc_in": [0],
+                "padding": [0],
+                "padding_mode": "zeros",
+            },
+            {
+                "channels": [32, 64, 128],
+                "kernel_size_in": [4, 5, 4],
+                "stride_in":      [1, 1, 1],
+                "max_pool": True, 
+                "max_pool_kernel_size_in": 2, 
+                "max_pool_loc_in": [1, 3],
+                "padding_mode": "zeros"
+            },
+            {
+                "channels": [32, 64, 128, 256, 512],
+                "kernel_size_in": [5, 5, 5, 5, 5],
+                "stride_in":      [1, 1, 1, 1, 1],
+                "max_pool": False, 
+                "max_pool_kernel_size_in": 2, 
+                "max_pool_loc_in": [2],
+                "padding_mode": "zeros"
+            },
+            ]
+        }
+        
+        dict_escnn["architecture"] = \
+            {
+                "values":[
+                {
+                    "channels": [32, 64, 128, 256, 512],
+                    "kernel_size_in": [4, 3, 3, 3, 3],
+                    "stride_in":      [1, 1, 1, 1, 1],
+                    "max_pool": True, 
+                    "max_pool_kernel_size_in": 2, 
+                    "max_pool_loc_in": [2],
+                    "padding_mode": "zeros"
+                },
+
+                {
+                    "channels": [32, 64, 128],
+                    "kernel_size_in": [4, 5, 4],
+                    "stride_in":      [1, 1, 1],
+                    "max_pool": True, 
+                    "max_pool_kernel_size_in": 2, 
+                    "max_pool_loc_in": [1, 3],
+                    "padding_mode": "zeros"
+                },
+
+                ]
+            },
+
+        dict_auto["architecture"] = \
+            {"values":[
+                    {
+                        "channels": [3, 32, 64, 128, 256, 512],
+                        "kernel_size_in": [5, 4, 3, 2, 2],
+                        "stride_in":      [1, 1, 1, 1, 1],
+                        "max_pool": True, 
+                        "max_pool_kernel_size_in": 2, 
+                        "max_pool_loc_in": [2],
+                        "padding_mode": "zeros"
+                    },
+                    {
+                        "channels": [3, 8, 16, 32, 64, 128],
+                        "kernel_size_in": [5, 4, 3, 2, 2],
+                        "stride_in":      [1, 1, 1, 1, 1],
+                        "max_pool": True, 
+                        "max_pool_kernel_size_in": 2, 
+                        "max_pool_loc_in": [2],
+                        "padding_mode": "zeros"
+                    },
+                    {
+                        "channels": [3, 32, 64, 128],
+                        "kernel_size_in": [4, 5, 4],
+                        "stride_in":      [1, 1, 1],
+                        "max_pool": True, 
+                        "max_pool_kernel_size_in": 2, 
+                        "max_pool_loc_in": [1, 3],
+                        "padding_mode": "zeros"
+                    },
+                    {
+                        "channels": [3, 32, 64, 128, 256, 512],
+                        "kernel_size_in": [2, 2, 2, 2, 2],
+                        "stride_in":      [1, 1, 1, 1, 1],
+                        "max_pool": True, 
+                        "max_pool_kernel_size_in": 2, 
+                        "max_pool_loc_in": [0, 2],
+                        "padding_mode": "zeros"
+                    }
+                    ]
+            },
+
+        dict_vae["architecture"] = \
+                {"values":[
+                    {
+                        "channels": [3, 32, 64, 128, 256, 512],
+                        "kernel_size_in": [5, 4, 3, 2, 2],
+                        "stride_in":      [1, 1, 1, 1, 1],
+                        "max_pool": True, 
+                        "max_pool_kernel_size_in": 2, 
+                        "max_pool_loc_in": [2],
+                        "padding_mode": "zeros"
+                    },
+                    {
+                        "channels_in": [3, 8, 16, 32, 64, 128],
+                        "kernel_size_in": [5, 4, 3, 2, 2],
+                        "stride_in":      [1, 1, 1, 1, 1],
+                        "max_pool": True, 
+                        "max_pool_kernel_size_in": 2, 
+                        "max_pool_loc_in": [2],
+                        "padding_mode": "zeros"
+                    },
+                    {
+                        "channels": [3, 32, 64, 128],
+                        "kernel_size_in": [4, 5, 4],
+                        "stride_in":      [1, 1, 1],
+                        "max_pool": True, 
+                        "max_pool_kernel_size_in": 2, 
+                        "max_pool_loc_in": [1, 3],
+                        "padding_mode": "zeros"
+                    },
+                    {
+                        "channels": [3, 32, 64, 128, 256, 512],
+                        "kernel_size_in": [2, 2, 2, 2, 2],
+                        "stride_in":      [1, 1, 1, 1, 1],
+                        "max_pool": True, 
+                        "max_pool_kernel_size_in": 2, 
+                        "max_pool_loc_in": [0, 2],
+                        "padding_mode": "zeros"
+                    }
+                    ]
+                },
+    
+        dict_escnn["architecture"] = \
+                {"values":[
+                    {
+                        "channels": [32, 64, 128, 256, 512],
+                        "kernel_size_in": [4, 3, 3, 3, 3],
+                        "stride_in":      [1, 1, 1, 1, 1],
+                        "max_pool": True, 
+                        "max_pool_kernel_size_in": 2, 
+                        "max_pool_loc_in": [2],
+                        "padding_mode": "zeros"
+                    },
+                    {
+                        "channels": [32, 64, 128],
+                        "kernel_size_in": [4, 5, 4],
+                        "stride_in":      [1, 1, 1],
+                        "max_pool": True, 
+                        "max_pool_kernel_size_in": 2, 
+                        "max_pool_loc_in": [1, 3],
+                        "padding_mode": "zeros"
+                    },
+                    ]
+                },
+    
+    else: 
+        dict_ret['esvae']["architecture"] = \
+            {"values":[
+                {
+                    "channels": [256, 512, 1024],
+                    "kernel_size_in": [7, 7, 3],
+                    "stride_in":      [3, 3, 1],
+                    "kernel_size_out": [9, 5, 5],
+                    "stride_out":      [1, 2, 3],
+                    "max_pool": False, 
+                    "max_pool_kernel_size_in": 2, 
+                    "max_pool_loc_in": [2],
+                    "max_pool_kernel_size_out": 2, 
+                    "max_pool_loc_out": [2],
+                    "padding_mode": "zeros"
+                },
+                ]
+            },
+
+        dict_auto["architecture"] = \
+            {"values":[
+                {
+                    "channels": [256, 512, 1024],
+                    "kernel_size_in": [7, 7, 3],
+                    "stride_in":      [3, 3, 1],
+                    "kernel_size_out": [9, 5, 5],
+                    "stride_out":      [1, 2, 3],
+                    "max_pool": False, 
+                    "max_pool_kernel_size_in": 2, 
+                    "max_pool_loc_in": [2],
+                    "max_pool_kernel_size_out": 2, 
+                    "max_pool_loc_out": [2],
+                    "padding_mode": "zeros"
+                },
+                ]
+            },
+
+        dict_vae["architecture"] = \
+            {"values":[
+                {
+                    "channels": [256, 512, 1024],
+                    "kernel_size_in": [7, 7, 3],
+                    "stride_in":      [3, 3, 1],
+                    "kernel_size_out": [9, 5, 5],
+                    "stride_out":      [1, 2, 3],
+                    "max_pool": False, 
+                    "max_pool_kernel_size_in": 2, 
+                    "max_pool_loc_in": [2],
+                    "max_pool_kernel_size_out": 2, 
+                    "max_pool_loc_out": [2],
+                    "padding_mode": "zeros"
+                }
+                ]
+            },
+    
+        dict_escnn["architecture"] = \
+            {"values":[
+                {
+                    "channels": [256, 512, 1024],
+                    "kernel_size_in": [7, 7, 3],
+                    "stride_in":      [3, 3, 1],
+                    "kernel_size_out": [9, 5, 5],
+                    "stride_out":      [1, 2, 3],
+                    "max_pool": False, 
+                    "max_pool_kernel_size_in": 2, 
+                    "max_pool_loc_in": [2],
+                    "max_pool_kernel_size_out": 2, 
+                    "max_pool_loc_out": [2],
+                    "padding_mode": "zeros"
+                }
+                ]
+            },
+    
 
     dict_ret['escnn'] = dict_escnn
     dict_ret['esvae'] = dict_esvae
     dict_ret['auto'] = dict_auto
     dict_ret['vae'] = dict_vae
+    dict_ret["cnn_supervised"] = dict_cnn_supervised
+    dict_ret["escnn_supervised"] = dict_escnn_supervised
+
     return dict_ret
 

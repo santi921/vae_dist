@@ -6,8 +6,6 @@
     "max_pool": false, 
     "max_pool_kernel_size_in": 0, 
     "max_pool_loc_in": [0],
-    "max_pool_kernel_size_out": 2, 
-    "max_pool_loc_out": [2],
     "fully_connected_layers": [500, 500],
     "padding": 0,
     "dilation": 1,
