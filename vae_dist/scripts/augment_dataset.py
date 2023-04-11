@@ -32,8 +32,8 @@ def main():
     # input_dir 
     # output_dir
     aug_obj = Augment(xy = True, z = False, rot = -1)
-    input_dir = "../../data/cpet_5ang_25/"
-    output_dir = "../../data/cpet_augmented_5ang_25/"
+    input_dir = "../../data/cpet/"
+    output_dir = "../../data/cpet_augment/"
     
     # create output directory if it doesn't exist
     if not os.path.exists(output_dir):
@@ -42,8 +42,9 @@ def main():
     # iterate through files in input directory ending in .dat
     for ind, file in enumerate(os.listdir(input_dir)):
         if file.endswith(".dat"):
-            meta_data = mat_pull(input_dir + file, meta_data = True)
-            mat = mat_pull(input_dir + file)
+            
+            meta_data = mat_pull(input_dir + file, meta_data = True, offset=0)
+            mat = mat_pull(input_dir + file, offset=0)
             #print(meta_data)
             print("original shape: ", mat.shape)
             mat_aug = aug_obj(mat.reshape([1, meta_data['steps_x'], meta_data['steps_y'], meta_data['steps_z'], 3]))

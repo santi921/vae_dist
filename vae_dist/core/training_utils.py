@@ -1,7 +1,7 @@
 import torch 
 from escnn import gspaces, nn, group                                        
 
-
+from vae_dist.core.intializers import *
 from vae_dist.core.O3VAE import R3VAE
 from vae_dist.core.R3CNN import R3CNN
 from vae_dist.core.VAE import baselineVAEAutoencoder
@@ -79,15 +79,14 @@ def train(model, data_loader, epochs=20):
         print("epoch: {} loss: {}".format(epoch, running_loss))
     
 
-def construct_model(model, options, scalar_field=False):
-    """
-    Constructs a model based on the model name and options.
-    Takes 
-        model: string, name of the model
-        options: dict, options for the model
-    Returns
-        model: pl.LightningModule, the model
-    """
+    """def construct_model(model, options, scalar_field=False):
+    #Constructs a model based on the model name and options.
+    #Takes 
+    #    model: string, name of the model
+    #    options: dict, options for the model
+    #Returns
+    #    model: pl.LightningModule, the model
+    
     assert model in ["esvae", 'vae', 'cnn', 'escnn', 'escnn_supervised', 'cnn_supervised', 'escnn_regressor', 'escnn_regressor_supervised'], "Model must be vae, cnn, escnn, escnn_supervised, cnn_supervised, escnn_regressor, escnn_regressor_supervised"
     dim = 3
     if scalar_field: dim = 1
@@ -132,10 +131,11 @@ def construct_model(model, options, scalar_field=False):
         print("building cnn_supervised...")
         model = CNNRegressor(**options)
 
+
     return model
+    """
 
-
-def construct_model_hyper(model, options, im_dim=21):
+def construct_model(model, options, im_dim=21, scalar_field=False):
     """
     Constructs a model based on the model name and options.
     Takes 
@@ -150,12 +150,15 @@ def construct_model_hyper(model, options, im_dim=21):
         "groups": 1,
         "dilation": 1,
     }
+    assert model in ["esvae", 'vae', 'cnn', 'escnn', 'escnn_supervised', 'cnn_supervised', 'escnn_regressor', 'escnn_regressor_supervised'], "Model must be vae, cnn, escnn, escnn_supervised, cnn_supervised, escnn_regressor, escnn_regressor_supervised"
+    dim = 3
+    if scalar_field: dim = 1
 
     if model == 'esvae':
         print("building esvae...")
         g = group.o3_group()
         gspace = gspaces.flipRot3dOnR3(maximum_frequency=10) 
-        input_out_reps = 3*[gspace.trivial_repr]
+        input_out_reps = dim*[gspace.trivial_repr]
         feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
         feat_type_out = nn.FieldType(gspace,  input_out_reps) 
         options.update(options['architecture'])
@@ -166,7 +169,7 @@ def construct_model_hyper(model, options, im_dim=21):
         print("building escnn...")
         g = group.o3_group()
         gspace = gspaces.flipRot3dOnR3(maximum_frequency=10) 
-        input_out_reps = 3*[gspace.trivial_repr]
+        input_out_reps = dim*[gspace.trivial_repr]
         feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
         feat_type_out = nn.FieldType(gspace,  input_out_reps)  
         options.update(options['architecture'])
@@ -203,11 +206,23 @@ def construct_model_hyper(model, options, im_dim=21):
         options.update(options_non_wandb) 
         model = R3CNNRegressor(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)
 
+    initializer = options['initializer']
+    if initializer == 'kaiming':
+        kaiming_init(model)
+    elif initializer == 'xavier':
+        xavier_init(model)
+    elif initializer == 'equi_var': 
+        equi_var_init(model)
+    else:
+        raise ValueError("Initializer must be kaiming, xavier or equi_var")
+    
+
     return model
 
 
 def hyperparameter_dicts(image_size = 21):
     assert image_size == 21 or image_size==51, "image size must be 21 or 51"
+    
     dict_ret = {}
     
     dict_escnn = {
@@ -280,7 +295,7 @@ def hyperparameter_dicts(image_size = 21):
 
 
     dict_escnn_supervised = {
-        "initializer": {"values": ["equi_var", "xavier", "kaiming"]},
+        "initializer": {"values": ["xavier", "kaiming"]},
         "irreps": {"values": [None]},
         "fully_connected_layers": {"values": [[100, 10], [100], [100, 50, 10], [50]]},
         "batch_norm": {"values": [True, False]},
@@ -515,7 +530,7 @@ def hyperparameter_dicts(image_size = 21):
                 ]
             },
     
-        dict_escnn["architecture"] = \
+        dict_esvae["architecture"] = \
             {"values":[
                 {
                     "channels": [32, 32, 64, 128, 256],
@@ -603,6 +618,7 @@ def hyperparameter_dicts(image_size = 21):
                 },
                 ]
             },
+        
         dict_auto["architecture"] = \
             {"values":[
                 {

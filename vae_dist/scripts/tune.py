@@ -11,7 +11,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping
 
 from vae_dist.core.intializers import *
 from vae_dist.dataset.dataset import FieldDataset, dataset_split_loader
-from vae_dist.core.training_utils import construct_model_hyper, hyperparameter_dicts, LogParameters
+from vae_dist.core.training_utils import construct_model, hyperparameter_dicts, LogParameters
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 
@@ -83,10 +83,10 @@ class training:
 
     def make_model(self, config):
         
-        model_obj = construct_model_hyper(model = self.model, options = config)
+        model_obj = construct_model(model = self.model, options = config)
         model_obj.to(self.device)
         
-        initializer = config['initializer']
+        """initializer = config['initializer']
         if initializer == 'kaiming':
             kaiming_init(model)
         elif initializer == 'xavier':
@@ -95,6 +95,7 @@ class training:
             equi_var_init(model)
         else:
             raise ValueError("Initializer must be kaiming, xavier or equi_var")
+        """
         
         if self.model ==  'auto': 
             log_save_dir = "./logs/log_version_autoenc_sweep/"

@@ -11,7 +11,12 @@ from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping
 
 from vae_dist.core.intializers import *
 from vae_dist.dataset.dataset import FieldDatasetSupervised, dataset_split_loader
-from vae_dist.core.training_utils import construct_model_hyper, hyperparameter_dicts, LogParameters
+from vae_dist.core.training_utils import (
+    construct_model, 
+    hyperparameter_dicts, 
+    LogParameters, 
+    InputMonitor,
+)
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 def set_enviroment():
@@ -97,7 +102,7 @@ class training:
 
     def make_model(self, config):
         
-        model_obj = construct_model_hyper(model = self.model, options = config)
+        model_obj = construct_model(model = self.model, options = config)
         model_obj.to(self.device)
         
         initializer = config['initializer']
@@ -131,22 +136,25 @@ class training:
         )
 
         lr_monitor = LearningRateMonitor(logging_interval='step')
+
         trainer = pl.Trainer(
-            max_epochs=config['max_epochs'], 
+            max_epochs=config['max_epochs'],
             accelerator='gpu', 
             devices = [0],
             accumulate_grad_batches=3, 
             enable_progress_bar=True,
             log_every_n_steps=10,
-            gradient_clip_val=1.0,
-            callbacks=[early_stop_callback,  
+            gradient_clip_val=0.5,
+            callbacks=[
+                early_stop_callback,  
                 lr_monitor, 
-                log_parameters],
+                log_parameters,
+                InputMonitor()],
             enable_checkpointing=True,
             default_root_dir=log_save_dir,
             logger=[logger_tb, logger_wb],
             detect_anomaly=True,
-            precision=16 
+            precision=16
         )
 
         return model_obj, trainer, log_save_dir

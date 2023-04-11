@@ -162,7 +162,7 @@ class R3CNNRegressor(pl.LightningModule):
 
         self.encoder_fully_net = torch.nn.Sequential(*self.list_enc_fully)
         self.encoder_conv = nn.SequentialModule(*self.encoder_conv_list)
-        self.encoder = nn.SequentialModule(self.encoder_conv, self.encoder_fully_net)
+        #self.encoder = nn.SequentialModule(self.encoder_conv, self.encoder_fully_net)
         
         # this will need to be generalized for scalar fields
         self.example_input_array = torch.rand(1, 3, self.hparams.im_dim, self.hparams.im_dim, self.hparams.im_dim)
@@ -182,7 +182,7 @@ class R3CNNRegressor(pl.LightningModule):
 
     def encode(self, x):
         x = self.feat_type_in(x)
-        x = self.encoder(x)
+        x = self.encoder_conv(x)
         x = x.tensor
         x = x.reshape(x.shape[0], -1)
         

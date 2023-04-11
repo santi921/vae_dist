@@ -93,16 +93,6 @@ if __name__ == '__main__':
     # load model to gpu
     model.to(device)
 
-    initializer = options['initializer']
-    if initializer == 'kaiming':
-        kaiming_init(model)
-    elif initializer == 'xavier':
-        xavier_init(model)
-    elif initializer == 'equi_var': # works
-        equi_var_init(model)
-    else:
-        raise ValueError("Initializer must be kaiming, xavier or equi_var")
-
     
     print(">"*40 + "config_settings" + "<"*40)
     for k, v in options.items():
@@ -149,11 +139,12 @@ if __name__ == '__main__':
         max_epochs=epochs, 
         accelerator='gpu', 
         devices = [0],
-        accumulate_grad_batches=2, 
+        accumulate_grad_batches=3, 
         enable_progress_bar=True,
         log_every_n_steps=10,
-        gradient_clip_val=2.0,
-        callbacks=[early_stop_callback,  
+        gradient_clip_val=0.5,
+        callbacks=[
+            early_stop_callback,  
             lr_monitor, 
             log_parameters,
             InputMonitor()],
