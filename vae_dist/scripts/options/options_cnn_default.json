@@ -20,7 +20,7 @@
     "fully_connected_layers": [500],
     "log_wandb": true,
     "im_dim": 21,
-    "dropout": 0.0,
+    "dropout": 0.1,
     "batch_size": 32,
     "batch_norm": true,
     "bias": true,

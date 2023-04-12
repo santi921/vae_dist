@@ -176,7 +176,7 @@ def construct_model(model, options, im_dim=21, scalar_field=False):
         options.update(options_non_wandb)
         model = R3CNN(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)   
 
-    elif model == 'auto':
+    elif model == 'cnn':
         print("building autoencoder...")
         options.update(options['architecture'])
         options.update(options_non_wandb)
@@ -208,10 +208,13 @@ def construct_model(model, options, im_dim=21, scalar_field=False):
 
     initializer = options['initializer']
     if initializer == 'kaiming':
+        print("using kaiming initialization")
         kaiming_init(model)
     elif initializer == 'xavier':
+        print("using xavier initialization")
         xavier_init(model)
     elif initializer == 'equi_var': 
+        print("using equi-var initialization")
         equi_var_init(model)
     else:
         raise ValueError("Initializer must be kaiming, xavier or equi_var")
@@ -253,7 +256,7 @@ def hyperparameter_dicts(image_size = 21):
     }
 
     dict_vae = {
-        "initializer": {"values": ["equi_var", "xavier", "kaiming"]},
+        "initializer": {"values": ["equi_var", "kaiming"]},
         "beta": {"values": [0.001, 0.01,1, 10, 100]},
         "bias": {"values": [True]},
         "max_epochs": {"values": [100, 500, 1000]},

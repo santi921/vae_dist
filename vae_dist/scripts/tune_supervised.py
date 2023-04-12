@@ -154,7 +154,7 @@ class training:
             default_root_dir=log_save_dir,
             logger=[logger_tb, logger_wb],
             detect_anomaly=True,
-            precision=16
+            precision=32
         )
 
         return model_obj, trainer, log_save_dir

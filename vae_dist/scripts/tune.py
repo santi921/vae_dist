@@ -1,18 +1,13 @@
-# TODO: modify for new parameters
+import wandb, argparse, torch
 
-import wandb, argparse
-import matplotlib.pyplot as plt
-
-from sklearn.metrics import r2_score
-
-import torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 from vae_dist.core.intializers import *
 from vae_dist.dataset.dataset import FieldDataset, dataset_split_loader
-from vae_dist.core.training_utils import construct_model, hyperparameter_dicts, LogParameters
-from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+from vae_dist.core.training_utils import construct_model, hyperparameter_dicts, LogParameters, InputMonitor
+
 
 
 class training: 
@@ -131,12 +126,13 @@ class training:
             gradient_clip_val=0.5,
             callbacks=[early_stop_callback,  
                 lr_monitor, 
-                log_parameters],
+                log_parameters,
+                InputMonitor()],
             enable_checkpointing=True,
             default_root_dir=log_save_dir,
             logger=[logger_tb, logger_wb],
             detect_anomaly=True,
-            precision=16 
+            precision=32 
         )
 
         return model_obj, trainer, log_save_dir
@@ -173,8 +169,17 @@ class training:
         run.finish()
 
 
+def set_enviroment():
+    from torch.multiprocessing import set_start_method
+    torch.set_float32_matmul_precision("high")
+    try:
+        set_start_method('spawn')
+    except RuntimeError:
+        pass
+
 if __name__ == "__main__":
 
+    set_enviroment()
 
     parser = argparse.ArgumentParser(description='options for hyperparam tune')
     parser.add_argument(
