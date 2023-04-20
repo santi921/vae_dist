@@ -2,11 +2,11 @@ import argparse, json, wandb
 import torch                                                      
 
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping
+from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 from vae_dist.dataset.dataset import FieldDataset
-from vae_dist.core.training_utils import construct_model, LogParameters, set_enviroment
+from vae_dist.core.training_utils import construct_model, LogParameters, InputMonitor
 
 def set_enviroment():
     from torch.multiprocessing import set_start_method
@@ -33,7 +33,7 @@ if __name__ == '__main__':
     epochs = args.epochs
     model_select = args.model
     dataset_dir = args.dataset_dir
-    dataset_name = dataset_dir.split('/')[-1]
+    dataset_name = dataset_dir.split('/')[-2]
     print("dataset_name: ", dataset_name)
     root = dataset_dir
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -145,7 +145,12 @@ if __name__ == '__main__':
     log_parameters = LogParameters()
     logger_tb = TensorBoardLogger(log_save_dir, name="test_logs")
     logger_wb = WandbLogger(project="{}_dist_single".format(model_select), name="test_logs")
-
+    checkpoint_callback = ModelCheckpoint(
+        monitor='val_loss',
+        dirpath=log_save_dir,
+        filename='{epoch:02d}-{val_loss:.2f}',
+        mode='min',
+    )
     trainer = pl.Trainer(
         max_epochs=epochs, 
         accelerator='gpu', 
@@ -156,7 +161,8 @@ if __name__ == '__main__':
         callbacks=[early_stop_callback,  
             lr_monitor, 
             log_parameters,
-            InputMonitor()],
+            InputMonitor(), 
+            checkpoint_callback],
         enable_checkpointing=True,
         default_root_dir=log_save_dir,
         logger=[logger_tb, logger_wb],

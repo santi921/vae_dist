@@ -1,7 +1,7 @@
 import argparse, json, wandb                                         
 import torch                                                      
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping
+from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 from vae_dist.dataset.dataset import FieldDatasetSupervised, dataset_split_loader
@@ -134,6 +134,12 @@ if __name__ == '__main__':
     log_parameters = LogParameters()
     logger_tb = TensorBoardLogger(log_save_dir, name="test_logs")
     logger_wb = WandbLogger(project="{}_supervised_vae_dist".format(model_select), name="test_logs")
+    checkpoint_callback = ModelCheckpoint(
+        monitor='val_loss',
+        dirpath=log_save_dir,
+        filename='{epoch:02d}-{val_loss:.2f}',
+        mode='min',
+    )
 
     trainer = pl.Trainer(
         max_epochs=epochs, 
@@ -147,7 +153,8 @@ if __name__ == '__main__':
             early_stop_callback,  
             lr_monitor, 
             log_parameters,
-            InputMonitor()],
+            InputMonitor(),
+            checkpoint_callback],
         enable_checkpointing=True,
         default_root_dir=log_save_dir,
         logger=[logger_tb, logger_wb],

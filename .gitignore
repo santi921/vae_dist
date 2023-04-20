@@ -17,3 +17,5 @@
 lightning_logs/*
 test_logs/*
 events*
+
+*png

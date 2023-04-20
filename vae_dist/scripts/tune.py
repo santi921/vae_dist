@@ -1,7 +1,7 @@
 import wandb, argparse, torch
 
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping
+from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 from vae_dist.core.intializers import *
@@ -115,6 +115,12 @@ class training:
             verbose=False,
             mode='min'
         )
+        checkpoint_callback = ModelCheckpoint(
+            monitor='val_loss',
+            dirpath=log_save_dir,
+            filename='{epoch:02d}-{val_loss:.2f}',
+            mode='min',
+        )
 
         lr_monitor = LearningRateMonitor(logging_interval='step')
         trainer = pl.Trainer(
@@ -127,7 +133,8 @@ class training:
             callbacks=[early_stop_callback,  
                 lr_monitor, 
                 log_parameters,
-                InputMonitor()],
+                InputMonitor(),
+                checkpoint_callback],
             enable_checkpointing=True,
             default_root_dir=log_save_dir,
             logger=[logger_tb, logger_wb],
@@ -220,6 +227,7 @@ if __name__ == "__main__":
     data_dir = str(results.dataset)
     #dataset_int = int(results.dataset)
     count = int(results.count)
+
     dataset_name = str(results.dataset).split("/")[-1]
     
     dict_hyper = hyperparameter_dicts(image_size = 21)

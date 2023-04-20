@@ -19,7 +19,7 @@
     "dilation": 1,
     "groups": 1,
     "bias": false,
-    "latent_dim": 1,
+    "latent_dim": 100,
     "activation": "relu",
     "batch_norm": true,
     "learning_rate": 0.001,

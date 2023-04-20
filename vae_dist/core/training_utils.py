@@ -8,7 +8,7 @@ from vae_dist.core.VAE import baselineVAEAutoencoder
 from vae_dist.core.CNN import CNNAutoencoderLightning
 from vae_dist.core.R3CNN_regressor import R3CNNRegressor
 from vae_dist.core.CNN_regressor import CNNRegressor
-from escnn import gspaces, nn, group                                         
+                                        
 import pytorch_lightning as pl
 import numpy as np 
 
@@ -79,61 +79,7 @@ def train(model, data_loader, epochs=20):
         print("epoch: {} loss: {}".format(epoch, running_loss))
     
 
-    """def construct_model(model, options, scalar_field=False):
-    #Constructs a model based on the model name and options.
-    #Takes 
-    #    model: string, name of the model
-    #    options: dict, options for the model
-    #Returns
-    #    model: pl.LightningModule, the model
-    
-    assert model in ["esvae", 'vae', 'cnn', 'escnn', 'escnn_supervised', 'cnn_supervised', 'escnn_regressor', 'escnn_regressor_supervised'], "Model must be vae, cnn, escnn, escnn_supervised, cnn_supervised, escnn_regressor, escnn_regressor_supervised"
-    dim = 3
-    if scalar_field: dim = 1
 
-    if model == 'esvae':
-        print("building esvae...")
-        g = group.so3_group()
-        gspace = gspaces.flipRot3dOnR3(maximum_frequency=64) 
-        input_out_reps = dim*[gspace.trivial_repr]
-        feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
-        feat_type_out = nn.FieldType(gspace,  input_out_reps) 
-        model = R3VAE(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)
-    
-    elif model == 'escnn':
-        print("building escnn...")
-        g = group.so3_group()
-        gspace = gspaces.flipRot3dOnR3(maximum_frequency=64) 
-        input_out_reps = dim*[gspace.trivial_repr]
-        feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
-        feat_type_out = nn.FieldType(gspace,  input_out_reps)  
-        model = R3CNN(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)   
-    
-    elif model == 'escnn_supervised':
-        print("building escnn_supervised...")
-        g = group.so3_group()
-        gspace = gspaces.flipRot3dOnR3(maximum_frequency=64) 
-        input_out_reps = dim*[gspace.trivial_repr]
-        output_reps = [gspace.trivial_repr]
-        feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
-        feat_type_out = nn.FieldType(gspace,  output_reps)  
-        model = R3CNNRegressor(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)
-
-    elif model == 'cnn':
-        print("building cnn...")
-        model = CNNAutoencoderLightning(**options)
-
-    elif model == 'vae':
-        print("building vae...")
-        model = baselineVAEAutoencoder(**options)
-
-    elif model == 'cnn_supervised':
-        print("building cnn_supervised...")
-        model = CNNRegressor(**options)
-
-
-    return model
-    """
 
 def construct_model(model, options, im_dim=21, scalar_field=False):
     """
@@ -156,25 +102,15 @@ def construct_model(model, options, im_dim=21, scalar_field=False):
 
     if model == 'esvae':
         print("building esvae...")
-        g = group.o3_group()
-        gspace = gspaces.flipRot3dOnR3(maximum_frequency=10) 
-        input_out_reps = dim*[gspace.trivial_repr]
-        feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
-        feat_type_out = nn.FieldType(gspace,  input_out_reps) 
         options.update(options['architecture'])
         options.update(options_non_wandb)
-        model = R3VAE(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)
+        model = R3VAE(**options)
     
     elif model == 'escnn':
-        print("building escnn...")
-        g = group.o3_group()
-        gspace = gspaces.flipRot3dOnR3(maximum_frequency=10) 
-        input_out_reps = dim*[gspace.trivial_repr]
-        feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
-        feat_type_out = nn.FieldType(gspace,  input_out_reps)  
+        print("building escnn...")  
         options.update(options['architecture'])
         options.update(options_non_wandb)
-        model = R3CNN(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)   
+        model = R3CNN(**options)   
 
     elif model == 'cnn':
         print("building autoencoder...")
@@ -196,15 +132,9 @@ def construct_model(model, options, im_dim=21, scalar_field=False):
 
     elif model == 'escnn_supervised':
         print("building escnn supervised...")
-        g = group.so3_group()
-        gspace = gspaces.flipRot3dOnR3(maximum_frequency=64) 
-        input_out_reps = 3*[gspace.trivial_repr]
-        output_reps = [gspace.trivial_repr]
-        feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
-        feat_type_out = nn.FieldType(gspace,  output_reps) 
         options.update(options['architecture'])
         options.update(options_non_wandb) 
-        model = R3CNNRegressor(**options, gspace=gspace, group=g, feat_type_in=feat_type_in, feat_type_out=feat_type_out)
+        model = R3CNNRegressor(**options)
 
     initializer = options['initializer']
     if initializer == 'kaiming':
@@ -811,4 +741,6 @@ def hyperparameter_dicts(image_size = 21):
     dict_ret["escnn_supervised"] = dict_escnn_supervised
 
     return dict_ret
+
+
 

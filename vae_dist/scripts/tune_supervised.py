@@ -7,7 +7,7 @@ from sklearn.metrics import r2_score
 
 import torch
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping
+from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping, ModelCheckpoint
 
 from vae_dist.core.intializers import *
 from vae_dist.dataset.dataset import FieldDatasetSupervised, dataset_split_loader
@@ -136,7 +136,12 @@ class training:
         )
 
         lr_monitor = LearningRateMonitor(logging_interval='step')
-
+        checkpoint_callback = ModelCheckpoint(
+            monitor='val_loss',
+            dirpath=log_save_dir,
+            filename='{epoch:02d}-{val_loss:.2f}',
+            mode='min',
+        )
         trainer = pl.Trainer(
             max_epochs=config['max_epochs'],
             accelerator='gpu', 
@@ -149,7 +154,8 @@ class training:
                 early_stop_callback,  
                 lr_monitor, 
                 log_parameters,
-                InputMonitor()],
+                InputMonitor(),
+                checkpoint_callback],
             enable_checkpointing=True,
             default_root_dir=log_save_dir,
             logger=[logger_tb, logger_wb],
@@ -252,7 +258,7 @@ if __name__ == "__main__":
     super_file = str(results.super_file)
     count = int(results.count)
     image_size = int(results.im_size)
-    dataset_name = str(results.dataset).split("/")[-1]
+    dataset_name = str(results.dataset).split("/")[-2]
     
     assert model in ["cnn_supervised", "escnn_supervised"], "supervised sweep requires cnn_supervised or escnn_supervised"
     dict_hyper = hyperparameter_dicts(image_size = image_size)

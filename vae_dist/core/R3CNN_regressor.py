@@ -8,16 +8,23 @@ from torch.nn import functional as F
 import torchmetrics
 from vae_dist.core.metrics import *
 
-
+def pull_default_escnn_params(dim = 3):
+    from escnn import gspaces, nn, group 
+    g = group.o3_group()
+    gspace = gspaces.flipRot3dOnR3(maximum_frequency=10) 
+    input_out_reps = dim*[gspace.trivial_repr]
+    feat_type_in  = nn.FieldType(gspace,  input_out_reps) 
+    feat_type_out = nn.FieldType(gspace,  input_out_reps) 
+    return group, gspace, feat_type_in, feat_type_out, input_out_reps
 class R3CNNRegressor(pl.LightningModule):
     def __init__(
         self, 
         learning_rate, 
         channels,
-        gspace,  
-        group,
-        feat_type_in, 
-        feat_type_out, 
+        #gspace,  
+        #group,
+        #feat_type_in, 
+        #feat_type_out, 
         dropout,
         bias, 
         kernel_size_in=5,
@@ -36,14 +43,14 @@ class R3CNNRegressor(pl.LightningModule):
         super().__init__()
         self.learning_rate = learning_rate
         params = {
-            'in_type': feat_type_in,
+            #'in_type': feat_type_in,
             'channels': channels,
             'padding': 0,
             'bias': bias,
             'stride_in': stride_in, 
             'latent_dim': latent_dim,
-            'group': group,
-            'gspace': gspace,
+            #'group': group,
+            #'gspace': gspace,
             'batch_norm': batch_norm,
             'fully_connected_layers': fully_connected_layers,
             'activation': 'relu', 
@@ -60,16 +67,18 @@ class R3CNNRegressor(pl.LightningModule):
         assert len(channels) == len(stride_in), "channels and stride must be the same length"
         assert len(stride_in) == len(kernel_size_in) , "stride and kernel_size must be the same length"
         self.hparams.update(params)
+        self.save_hyperparameters()
 
         self.list_enc_fully  = []
         self.encoder_conv_list = []
-
-        self.gspace = gspace     
-        self.group = group
-        self.feat_type_in  = feat_type_in
-        self.feat_type_out = feat_type_out
-        self.feat_type_hidden = nn.FieldType(self.gspace, latent_dim*[self.gspace.trivial_repr])
-        self.dense_out_type = nn.FieldType(self.gspace,  self.hparams.channels[-1] * [self.gspace.trivial_repr])
+        
+        group, gspace, feat_type_in, feat_type_out, input_out_reps = pull_default_escnn_params()
+        gspace = gspace     
+        group = group
+        feat_type_in  = feat_type_in
+        feat_type_out = feat_type_out
+        feat_type_hidden = nn.FieldType(gspace, latent_dim*[gspace.trivial_repr])
+        dense_out_type = nn.FieldType(gspace,  self.hparams.channels[-1] * [gspace.trivial_repr])
 
         inner_dim = self.hparams.im_dim
         # number of output channels
@@ -114,9 +123,9 @@ class R3CNNRegressor(pl.LightningModule):
             else: 
                 channel_in = self.hparams.channels[ind-1]
                 channel_out = self.hparams.channels[ind]
-                in_type = nn.FieldType(self.gspace, channel_in * [self.gspace.trivial_repr])
+                in_type = nn.FieldType(gspace, channel_in * [gspace.trivial_repr])
             
-            out_type = nn.FieldType(self.gspace, channel_out * [self.gspace.trivial_repr])
+            out_type = nn.FieldType(gspace, channel_out * [gspace.trivial_repr])
     
             print('in_type: {} out_type: {}'.format(in_type, out_type))
             
