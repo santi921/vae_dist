@@ -2,54 +2,53 @@ import numpy as np
 from rdkit import Chem
 
 atom_int_dict = {
-    'H': 1,
-    'C': 6,
-    'N': 7,
-    'O': 8,
-    'F': 9,
-    'P': 15,
-    'S': 16,
-    'Cl': 17,
-    'Br': 35,
-    'Fe': 26, 
-    'FE': 26, 
-    'I': 53
+    "H": 1,
+    "C": 6,
+    "N": 7,
+    "O": 8,
+    "F": 9,
+    "P": 15,
+    "S": 16,
+    "Cl": 17,
+    "Br": 35,
+    "Fe": 26,
+    "FE": 26,
+    "I": 53,
 }
 
 
 int_atom_dict = {
-    1: 'H',
-    6: 'C',
-    7: 'N',
-    8: 'O',
-    9: 'F',
-    15: 'P',
-    16: 'S',
-    17: 'Cl',
-    35: 'Br',
-    26: 'Fe',
-    53: 'I'
+    1: "H",
+    6: "C",
+    7: "N",
+    8: "O",
+    9: "F",
+    15: "P",
+    16: "S",
+    17: "Cl",
+    35: "Br",
+    26: "Fe",
+    53: "I",
 }
 
 
 def pdb_to_xyz(file):
-    with open(file, 'r') as f:
+    with open(file, "r") as f:
         lines = f.readlines()
     xyz = []
     charge = []
     atom = []
     for line in lines:
-        if line.startswith('ATOM') or line.startswith('HETATM'):
+        if line.startswith("ATOM") or line.startswith("HETATM"):
             xyz.append([float(line[30:38]), float(line[38:46]), float(line[46:54])])
-            #xyz.append([float(i) for i in line.split()[6:9]])
+            # xyz.append([float(i) for i in line.split()[6:9]])
             charge.append(float(line.split()[-2]))
             atom.append(atom_int_dict[line.split()[-1]])
     return xyz, charge, atom
 
 
 def get_proto_mol(atoms):
-    """
-    """
+    """ """
     mol = Chem.MolFromSmarts("[#" + str(atoms[0]) + "]")
     rwMol = Chem.RWMol(mol)
     for i in range(1, len(atoms)):
@@ -60,8 +59,8 @@ def get_proto_mol(atoms):
 
     return mol
 
-def xyz2AC_vdW(atoms, xyz):
 
+def xyz2AC_vdW(atoms, xyz):
     # Get mol template
     mol = get_proto_mol(atoms)
 
