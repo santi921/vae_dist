@@ -9,5 +9,5 @@ setup(
     author_email="santiagovargas921@gmail.com",
     url="https://github.com/santi921/vae_distance",
     description="A package for training VAEs for electric field comparison",
-
+    scripts=['./vae_dist/data/augment_dataset.py']
 )

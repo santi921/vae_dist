@@ -28,10 +28,6 @@ class R3CNN(pl.LightningModule):
         self,
         learning_rate,
         channels,
-        # gspace,
-        # group,
-        # feat_type_in,
-        # feat_type_out,
         dropout,
         bias,
         kernel_size_in=5,
@@ -46,9 +42,12 @@ class R3CNN(pl.LightningModule):
         max_pool_loc_out=[3],
         stride_out=[1],
         fully_connected_layers=[64, 64, 64],
-        log_wandb=False,
+        log_wandb=True,
         im_dim=21,
         reconstruction_loss="mse",
+        optimizer="adam",
+        lr_decay_factor=0.5,
+        lr_patience=30,
         **kwargs,
     ):
         # super(self).__init__()
@@ -76,8 +75,11 @@ class R3CNN(pl.LightningModule):
             "max_pool_loc_in": max_pool_loc_in,
             "max_pool_loc_out": max_pool_loc_out,
             "reconstruction_loss": reconstruction_loss,
+            "optimizer": optimizer,
+            "lr_decay_factor": lr_decay_factor,
+            "lr_patience": lr_patience,
         }
-        print(params)
+        
 
         assert (
             len(channels) == len(stride_in) == len(stride_out)
@@ -91,10 +93,6 @@ class R3CNN(pl.LightningModule):
         self.hparams.update(params)
         self.save_hyperparameters()
 
-        # params["in_type"] = feat_type_in
-        # params["out_type"] = feat_type_out
-        # params["group"] = group
-        # params["gspace"] = gspace
 
         self.list_dec_fully = []
         self.list_enc_fully = []
@@ -105,14 +103,13 @@ class R3CNN(pl.LightningModule):
             group,
             gspace,
             feat_type_in,
-            feat_type_out,
+            _,
             input_out_reps,
         ) = pull_default_escnn_params()
+
         gspace = gspace
         group = group
         self.feat_type_in = feat_type_in
-        feat_type_out = feat_type_out
-        feat_type_hidden = nn.FieldType(gspace, latent_dim * [gspace.trivial_repr])
         self.dense_out_type = nn.FieldType(
             gspace, self.hparams.channels[-1] * [gspace.trivial_repr]
         )
@@ -441,13 +438,18 @@ class R3CNN(pl.LightningModule):
         self.log_dict(out_dict, prog_bar=True)
 
     def configure_optimizers(self):
-        # optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
-        optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
+        if self.hparams.optimizer == "Adam": 
+            print("Using Adam Optimizer")
+            optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        else:
+            print("Using SGD Optimizer")
+            optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
+        
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
-            mode="min",
-            factor=0.5,
-            patience=20,
+            mode="max",
+            factor=self.hparams.lr_decay_factor,
+            patience=self.hparams.lr_patience,
             verbose=True,
             threshold=0.0001,
             threshold_mode="rel",

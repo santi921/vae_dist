@@ -26,10 +26,6 @@ class R3CNNRegressor(pl.LightningModule):
         self,
         learning_rate,
         channels,
-        # gspace,
-        # group,
-        # feat_type_in,
-        # feat_type_out,
         dropout,
         bias,
         kernel_size_in=5,
@@ -40,21 +36,21 @@ class R3CNNRegressor(pl.LightningModule):
         max_pool_loc_in=[3],
         stride_in=[1],
         fully_connected_layers=[64, 64, 64],
-        log_wandb=False,
+        log_wandb=True,
         im_dim=21,
+        optimizer="adam",
+        lr_decay_factor=0.5,
+        lr_patience=30,
         **kwargs,
     ):
         super().__init__()
         self.learning_rate = learning_rate
         params = {
-            #'in_type': feat_type_in,
             "channels": channels,
             "padding": 0,
             "bias": bias,
             "stride_in": stride_in,
             "latent_dim": latent_dim,
-            #'group': group,
-            #'gspace': gspace,
             "batch_norm": batch_norm,
             "fully_connected_layers": fully_connected_layers,
             "activation": "relu",
@@ -66,6 +62,9 @@ class R3CNNRegressor(pl.LightningModule):
             "kernel_size_in": kernel_size_in,
             "max_pool_kernel_size_in": max_pool_kernel_size_in,
             "max_pool_loc_in": max_pool_loc_in,
+            "optimizer": optimizer,
+            "lr_decay_factor": lr_decay_factor,
+            "lr_patience": lr_patience,
         }
 
         assert len(channels) == len(
@@ -74,9 +73,9 @@ class R3CNNRegressor(pl.LightningModule):
         assert len(stride_in) == len(
             kernel_size_in
         ), "stride and kernel_size must be the same length"
+        
         self.hparams.update(params)
         self.save_hyperparameters()
-
         self.list_enc_fully = []
         self.encoder_conv_list = []
 
@@ -84,19 +83,14 @@ class R3CNNRegressor(pl.LightningModule):
             group,
             gspace,
             feat_type_in,
-            feat_type_out,
-            input_out_reps,
+            _, _,
         ) = pull_default_escnn_params()
+
         gspace = gspace
         group = group
-        feat_type_in = feat_type_in
-        feat_type_out = feat_type_out
-        feat_type_hidden = nn.FieldType(gspace, latent_dim * [gspace.trivial_repr])
-        dense_out_type = nn.FieldType(
-            gspace, self.hparams.channels[-1] * [gspace.trivial_repr]
-        )
-
+        self.feat_type_in = feat_type_in
         inner_dim = self.hparams.im_dim
+
         # number of output channels
         for i in range(len(self.hparams.channels)):
             inner_dim = int(
@@ -328,13 +322,18 @@ class R3CNNRegressor(pl.LightningModule):
         self.log_dict(out_dict, prog_bar=True)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
-        # optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
+        if self.hparams.optimizer == "Adam": 
+            print("Using Adam Optimizer")
+            optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        else:
+            print("Using SGD Optimizer")
+            optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
+        
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode="max",
-            factor=0.5,
-            patience=30,
+            factor=self.hparams.lr_decay_factor,
+            patience=self.hparams.lr_patience,
             verbose=True,
             threshold=0.0001,
             threshold_mode="rel",

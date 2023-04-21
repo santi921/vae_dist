@@ -29,10 +29,6 @@ class R3VAE(pl.LightningModule):
         self,
         learning_rate,
         channels,
-        # gspace,
-        # group,
-        # feat_type_in,
-        # feat_type_out,
         dropout,
         kernel_size_in=5,
         kernel_size_out=5,
@@ -43,7 +39,7 @@ class R3VAE(pl.LightningModule):
         bias=True,
         stride=[1],
         fully_connected_layers=[64, 64, 64],
-        log_wandb=False,
+        log_wandb=True,
         im_dim=21,
         max_pool_kernel_size_in=2,
         max_pool_loc_in=[3],
@@ -52,14 +48,15 @@ class R3VAE(pl.LightningModule):
         max_pool_loc_out=[3],
         stride_out=[1],
         reconstruction_loss="mse",
+        optimizer="adam",
+        lr_decay_factor=0.5,
+        lr_patience=30,
         **kwargs,
     ):
         super().__init__()
         self.learning_rate = learning_rate
 
         params = {
-            #'in_type': feat_type_in,
-            #'out_type': feat_type_out,
             "channels": channels,
             "padding": 0,
             "bias": bias,
@@ -67,8 +64,6 @@ class R3VAE(pl.LightningModule):
             "stride_out": stride_out,
             "learning_rate": learning_rate,
             "latent_dim": latent_dim,
-            #'group': group,
-            #'gspace': gspace,
             "fully_connected_layers": fully_connected_layers,
             "dropout": dropout,
             "batch_norm": batch_norm,
@@ -83,6 +78,9 @@ class R3VAE(pl.LightningModule):
             "log_wandb": log_wandb,
             "im_dim": im_dim,
             "reconstruction_loss": reconstruction_loss,
+            "optimizer": optimizer,
+            "lr_decay_factor": lr_decay_factor,
+            "lr_patience": lr_patience,
         }
 
         assert (
@@ -112,14 +110,16 @@ class R3VAE(pl.LightningModule):
             group,
             gspace,
             feat_type_in,
-            feat_type_out,
+            _,
             input_out_reps,
         ) = pull_default_escnn_params()
+        
         gspace = gspace
         group = group
+        
+        #feat_type_out = feat_type_out
         self.feat_type_in = feat_type_in
-        feat_type_out = feat_type_out
-        feat_type_hidden = nn.FieldType(gspace, latent_dim * [gspace.trivial_repr])
+        #feat_type_hidden = nn.FieldType(gspace, latent_dim * [gspace.trivial_repr])
         self.dense_out_type = nn.FieldType(
             gspace, self.hparams.channels[-1] * [gspace.trivial_repr]
         )
@@ -300,7 +300,6 @@ class R3VAE(pl.LightningModule):
         x = self.feat_type_in(x)
         x = self.encoder(x)
         x = x.tensor
-        # print("x.shape: ", x.shape)
         x = self.encoder_fully_net(x)
         mu, var = torch.clamp(self.fc_mu(x), min=0.000001), torch.clamp(
             self.fc_var(x), min=0.000001
@@ -309,8 +308,6 @@ class R3VAE(pl.LightningModule):
 
     def decode(self, x):
         x = self.decoder_fully_net(x)
-        # print("x.shape: ", x.shape)
-        # x = x.reshape(x.shape[0], self.channels_inner, self.im_dim, self.im_dim, self.im_dim)
         x = self.dense_out_type(x)
         x = self.decoder(x)
         x = x.tensor
@@ -467,20 +464,23 @@ class R3VAE(pl.LightningModule):
         print("Model Created!")
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
-
-        # optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
-
+        if self.hparams.optimizer == "Adam": 
+            print("Using Adam Optimizer")
+            optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        else:
+            print("Using SGD Optimizer")
+            optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
+        
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
-            mode="min",
-            factor=0.1,
-            patience=20,
+            mode="max",
+            factor=self.hparams.lr_decay_factor,
+            patience=self.hparams.lr_patience,
             verbose=True,
             threshold=0.0001,
             threshold_mode="rel",
             cooldown=0,
-            min_lr=0,
+            min_lr=1e-06,
             eps=1e-08,
         )
         lr_scheduler = {"scheduler": scheduler, "monitor": "val_loss"}

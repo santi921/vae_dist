@@ -39,6 +39,9 @@ class baselineVAEAutoencoder(pl.LightningModule):
         log_wandb=False,
         im_dim=21,
         reconstruction_loss="mse",
+        optimizer="adam",
+        lr_decay_factor=0.5,
+        lr_patience=30,
         **kwargs,
     ):
         super().__init__()
@@ -69,6 +72,9 @@ class baselineVAEAutoencoder(pl.LightningModule):
             "max_pool_loc_in": max_pool_loc_in,
             "max_pool_loc_out": max_pool_loc_out,
             "reconstruction_loss": reconstruction_loss,
+            "optimizer": optimizer,
+            "lr_decay_factor": lr_decay_factor,
+            "lr_patience": lr_patience,
         }
         assert (
             len(channels) - 1 == len(stride_in) == len(stride_out)
@@ -425,17 +431,23 @@ class baselineVAEAutoencoder(pl.LightningModule):
         self.log_dict(out_dict, prog_bar=True)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        if self.hparams.optimizer == "Adam": 
+            print("Using Adam Optimizer")
+            optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        else:
+            print("Using SGD Optimizer")
+            optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
+        
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
-            mode="min",
-            factor=0.5,
-            patience=20,
+            mode="max",
+            factor=self.hparams.lr_decay_factor,
+            patience=self.hparams.lr_patience,
             verbose=True,
             threshold=0.0001,
             threshold_mode="rel",
             cooldown=0,
-            min_lr=0,
+            min_lr=1e-06,
             eps=1e-08,
         )
         lr_scheduler = {"scheduler": scheduler, "monitor": "val_loss"}

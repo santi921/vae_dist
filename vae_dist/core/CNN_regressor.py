@@ -29,9 +29,12 @@ class CNNRegressor(pl.LightningModule):
         stride_in=[1],
         padding=0,
         fully_connected_layers=[64, 64, 64],
-        log_wandb=False,
+        log_wandb=True,
         im_dim=21,
         reconstruction_loss="mse",
+        optimizer="adam",
+        lr_decay_factor=0.5,
+        lr_patience=30,
         **kwargs,
     ):
         super().__init__()
@@ -58,6 +61,9 @@ class CNNRegressor(pl.LightningModule):
             "max_pool_kernel_size_in": max_pool_kernel_size_in,
             "max_pool_loc_in": max_pool_loc_in,
             "reconstruction_loss": reconstruction_loss,
+            "optimizer": optimizer,
+            "lr_decay_factor": lr_decay_factor,
+            "lr_patience": lr_patience,
         }
 
         assert len(channels) - 1 == len(
@@ -225,6 +231,8 @@ class CNNRegressor(pl.LightningModule):
             prog_bar=True,
             batch_size=len(label),
         )
+
+        
         return loss
 
     def compute_metrics(self, mode):
@@ -285,13 +293,18 @@ class CNNRegressor(pl.LightningModule):
         self.log_dict(out_dict, prog_bar=True)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
-        # optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
+        if self.hparams.optimizer.lower() == "adam": 
+            print("Using Adam Optimizer")
+            optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        else:
+            print("Using SGD Optimizer")
+            optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
+        
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode="max",
-            factor=0.5,
-            patience=30,
+            factor=self.hparams.lr_decay_factor,
+            patience=self.hparams.lr_patience,
             verbose=True,
             threshold=0.0001,
             threshold_mode="rel",

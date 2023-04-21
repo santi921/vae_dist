@@ -43,11 +43,6 @@ class training:
         device,
         transform=False,
         augmentation=False,
-        standardize=True,
-        lower_filter=True,
-        log_scale=True,
-        min_max_scale=False,
-        wrangle_outliers=False,
         scalar=False,
         offset=1,
         project="vae_dist",
@@ -56,45 +51,36 @@ class training:
         self.project = project
         self.device = device
         self.transform = transform
-        self.log_scale = log_scale
         self.offset = offset
         self.scalar = scalar
-        self.wrangle_outliers = wrangle_outliers
-        self.min_max_scale = min_max_scale
-        self.lower_filter = lower_filter
-        self.standardize = standardize
         self.aug = augmentation
         self.data_dir = data_dir
         self.supervised_file = supervised_file
 
-        print("dataset parameters")
-        print("augmentation: ", self.aug)
-        print("standardize: ", self.standardize)
-        print("log_scale: ", self.log_scale)
-        print("min_max_scale: ", self.min_max_scale)
-        print("wrangle_outliers: ", self.wrangle_outliers)
-        print("scalar: ", self.scalar)
-        print("offset: ", self.offset)
+    def make_model(self, config):
+            
+        dataset = FieldDatasetSupervised(
+            self.data_dir,
+            self.supervised_file,
+            device=self.device,
+            transform=self.transform,
+            augmentation=self.aug,
+            standardize=config["standardize"],
+            lower_filter=config["lower_filter"],
+            log_scale=config["log_scale"],
+            min_max_scale=config["min_max_scale"],
+            wrangle_outliers=config["wrangle_outliers"],
+            scalar=self.scalar,
+            offset=self.offset,
+        )
+        print("-"*30)
+        print("Some info...")
         print("model: ", self.model)
         print("device: ", self.device)
         print("data_dir: ", self.data_dir)
         print("supervised_file: ", self.supervised_file)
         print("project: ", self.project)
-
-        dataset = FieldDatasetSupervised(
-            data_dir,
-            supervised_file,
-            device=self.device,
-            transform=self.transform,
-            augmentation=self.aug,
-            standardize=self.standardize,
-            lower_filter=self.lower_filter,
-            log_scale=self.log_scale,
-            min_max_scale=self.min_max_scale,
-            wrangle_outliers=self.wrangle_outliers,
-            scalar=self.scalar,
-            offset=self.offset,
-        )
+        print("-"*30)
 
         # check if dataset has any inf or nan values
         print(
@@ -111,7 +97,6 @@ class training:
         self.data_loader_test = dataset_loader_test
         print("loaders  created " * 5)
 
-    def make_model(self, config):
         model_obj = construct_model(model=self.model, options=config)
         model_obj.to(self.device)
 
@@ -149,21 +134,16 @@ class training:
             filename="{epoch:02d}-{val_loss:.2f}",
             mode="min",
         )
+        callbacks = [ early_stop_callback, lr_monitor, log_parameters, InputMonitor(), checkpoint_callback,]
         trainer = pl.Trainer(
             max_epochs=config["max_epochs"],
             accelerator="gpu",
             devices=[0],
-            accumulate_grad_batches=3,
+            accumulate_grad_batches=config["accumulate_grad_batches"],
             enable_progress_bar=True,
             log_every_n_steps=10,
-            gradient_clip_val=0.5,
-            callbacks=[
-                early_stop_callback,
-                lr_monitor,
-                log_parameters,
-                InputMonitor(),
-                checkpoint_callback,
-            ],
+            gradient_clip_val=config["gradient_clip_val"],
+            callbacks=callbacks,
             enable_checkpointing=True,
             default_root_dir=log_save_dir,
             logger=[logger_tb, logger_wb],
@@ -177,23 +157,20 @@ class training:
         with wandb.init(project=self.project) as run:
             config = wandb.config
             model_obj, trainer, log_save_dir = self.make_model(config)
-            print("-" * 20 + "Training" + "-" * 20)
-            config.update(
+            print("-" * 20 + "Training in tuner" + "-" * 20)
+            
+            wandb.log(
                 {
                     "aug": self.aug,
-                    "standardize": self.standardize,
-                    "lower_filter": self.lower_filter,
                     "transform": self.transform,
-                    "log_scale": self.log_scale,
-                    "min_max_scale": self.min_max_scale,
-                    "wrangle_outliers": self.wrangle_outliers,
                     "scalar": self.scalar,
                     "offset": self.offset,
                     "model": self.model,
-                    "device": self.device,
+                    #"device": self.device,
                     "data_dir": self.data_dir,
                 }
             )
+            #print("-" * 20 + "Training in tuner" + "-" * 20)
             trainer.fit(model_obj, self.data_loader_train, self.data_loader_test)
 
             model_obj.eval()
@@ -265,21 +242,17 @@ if __name__ == "__main__":
     sweep_config["name"] = method + "_" + model + "_" + dataset_name
     sweep_config["method"] = method
     if method == "bayes":
-        sweep_config["metric"] = {"name": "val_rmse", "goal": "minimize"}
+        sweep_config["metric"] = {"name": "val_f1", "goal": "maximize"}
 
     pre_process_options = {
         "transform": False,
         "augmentation": False,
-        "standardize": True,
-        "lower_filter": True,
-        "log_scale": True,
-        "min_max_scale": False,
-        "wrangle_outliers": False,
         "scalar": False,
         "offset": 1,
     }
 
     sweep_id = wandb.sweep(sweep_config, project=project_name)
+    
     training_obj = training(
         data_dir,
         super_file,
@@ -287,11 +260,6 @@ if __name__ == "__main__":
         device=device,
         transform=pre_process_options["transform"],
         augmentation=pre_process_options["augmentation"],
-        standardize=pre_process_options["standardize"],
-        lower_filter=pre_process_options["lower_filter"],
-        log_scale=pre_process_options["log_scale"],
-        min_max_scale=pre_process_options["min_max_scale"],
-        wrangle_outliers=pre_process_options["wrangle_outliers"],
         scalar=pre_process_options["scalar"],
         offset=pre_process_options["offset"],
         project=project_name,

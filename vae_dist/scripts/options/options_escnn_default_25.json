@@ -28,5 +28,12 @@
     "reconstruction_loss": "mse",
     "lr_decay_factor": 0.5, 
     "lr_patience": 10, 
-    "optimizer": "adam"
+    "optimizer": "adam",
+    "standardize": true,
+    "lower_filter": true, 
+    "log_scale": true,
+    "scalar": false,
+    "offset": 1,
+    "wrangle_outliers": false, 
+    "min_max_scaler": false
 }

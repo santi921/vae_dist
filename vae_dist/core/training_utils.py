@@ -106,9 +106,10 @@ def construct_model(model, options, im_dim=21, scalar_field=False):
         "escnn_regressor",
         "escnn_regressor_supervised",
     ], "Model must be vae, cnn, escnn, escnn_supervised, cnn_supervised, escnn_regressor, escnn_regressor_supervised"
+    
+
     dim = 3
-    if scalar_field:
-        dim = 1
+    if options["scalar"]: dim = 1
 
     if model == "esvae":
         print("building esvae...")
@@ -257,6 +258,14 @@ def hyperparameter_dicts(image_size=21):
         "latent_dim": {"values": [3]},
         "activation": {"values": ["relu"]},
         "log_wandb": {"values": [True]},
+        "gradient_clip_val": {"values": [0.5, 1.0, 5.0, 10.0]},
+        "accumulate_grad_batches": {"values": [1, 2, 4, 8]},
+        "standardize": {"values": [False, True]},
+        "lower_filter": {"values": [False, True]},
+        "log_scale": {"values": [False, True]},
+        "min_max_scale": {"values": [False, True]},
+        "wrangle_outliers": {"values": [False, True]},
+        "scalar": {"values": [False]},
     }
 
     dict_escnn_supervised = {
@@ -277,6 +286,17 @@ def hyperparameter_dicts(image_size=21):
         "latent_dim": {"values": [3]},
         "activation": {"values": ["relu"]},
         "log_wandb": {"values": [True]},
+        "gradient_clip_val": {"values": [0.5, 1.0, 5.0, 10.0]},
+        "accumulate_grad_batches": {"values": [1, 2, 4, 8]},
+        "standardize": {"values": [False, True]},
+        "lower_filter": {"values": [False, True]},
+        "log_scale": {"values": [False, True]},
+        "min_max_scale": {"values": [False, True]},
+        "wrangle_outliers": {"values": [False, True]},
+        "lr_patience": {"values": [10, 20, 50]},
+        "lr_decay_factor": {"values": [0.1, 0.5, 0.8]},
+        "optimizer": {"values": ["Adam", "SGD"]},
+        "scalar": {"values": [False]},
     }
 
     if image_size == 21:

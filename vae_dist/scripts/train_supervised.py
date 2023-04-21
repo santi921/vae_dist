@@ -13,7 +13,6 @@ from vae_dist.core.training_utils import (
     construct_model,
     LogParameters,
     InputMonitor,
-    CheckBatchGradient,
 )
 from vae_dist.core.intializers import *
 
@@ -47,33 +46,6 @@ if __name__ == "__main__":
     supervised_file = "../../data/protein_data.csv"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    pre_process_options = {
-        "transform": False,
-        "augmentation": False,
-        "standardize": True,
-        "lower_filter": True,
-        "log_scale": True,
-        "min_max_scale": False,
-        "wrangle_outliers": False,
-        "scalar": False,
-        "offset": 1,
-    }
-
-    dataset_vanilla = FieldDatasetSupervised(
-        root,
-        supervised_file,
-        device=device,
-        transform=pre_process_options["transform"],
-        augmentation=pre_process_options["augmentation"],
-        standardize=pre_process_options["standardize"],
-        lower_filter=pre_process_options["lower_filter"],
-        log_scale=pre_process_options["log_scale"],
-        min_max_scale=pre_process_options["min_max_scale"],
-        wrangle_outliers=pre_process_options["wrangle_outliers"],
-        scalar=pre_process_options["scalar"],
-        offset=pre_process_options["offset"],
-    )
-
     if model_select == "escnn" or model_select == "cnn":
         run = wandb.init(project="supervised_vae_{}".format(dataset), reinit=True)
 
@@ -91,6 +63,23 @@ if __name__ == "__main__":
 
     wandb.config.update({"model": model_select, "epochs": epochs, "data": root})
     wandb.config.update(options)
+
+
+    dataset_vanilla = FieldDatasetSupervised(
+        root,
+        supervised_file,
+        device=device,
+        transform=False,
+        augmentation=False,
+        standardize=options["standardize"],
+        lower_filter=options["lower_filter"],
+        log_scale=options["log_scale"],
+        min_max_scale=options["min_max_scale"],
+        wrangle_outliers=options["wrangle_outliers"],
+        scalar=options["scalar"],
+        offset=options["offset"],
+    )
+
 
     # load model to gpu
     model.to(device)
@@ -137,22 +126,17 @@ if __name__ == "__main__":
         filename="{epoch:02d}-{val_loss:.2f}",
         mode="min",
     )
-
+    callbacks = [early_stop_callback, lr_monitor, log_parameters, checkpoint_callback, InputMonitor()]
+    
     trainer = pl.Trainer(
         max_epochs=epochs,
         accelerator="gpu",
         devices=[0],
-        accumulate_grad_batches=3,
+        accumulate_grad_batches=options["accumulate_grad_batches"],
         enable_progress_bar=True,
         log_every_n_steps=10,
-        gradient_clip_val=0.5,
-        callbacks=[
-            early_stop_callback,
-            lr_monitor,
-            log_parameters,
-            InputMonitor(),
-            checkpoint_callback,
-        ],
+        gradient_clip_val=options["gradient_clip_val"],
+        callbacks=callbacks,
         enable_checkpointing=True,
         default_root_dir=log_save_dir,
         logger=[logger_tb, logger_wb],
@@ -161,8 +145,8 @@ if __name__ == "__main__":
     )
 
     trainer.fit(model, dataset_train, dataset_val)
-
     model.eval()
+    
     # save state dict
     print("Saving model to: ", log_save_dir + "/model_supervised_datapoint.ckpt")
     torch.save(model.state_dict(), log_save_dir + "/model_supervised_datapoint.ckpt")

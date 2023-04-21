@@ -22,10 +22,18 @@
     "im_dim": 21,
     "initializer": "equi_var",
     "dropout": 0.1,
-    "offset": 0, 
     "learning_rate": 0.003,
     "beta": 1.0,
     "lr_decay_factor": 0.5, 
     "lr_patience": 10, 
-    "optimizer": "adam"
+    "optimizer": "adam",
+    "gradient_clip_val": 5.0, 
+    "accumulate_grad_batches": 1,
+    "standardize": true,
+    "lower_filter": true, 
+    "log_scale": true,
+    "scalar": false,
+    "offset": 1,
+    "wrangle_outliers": false, 
+    "min_max_scaler": false
 }
