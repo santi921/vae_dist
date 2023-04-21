@@ -29,5 +29,8 @@
     "irreps": null,
     "initializer": "equi_var",
     "groups": 1,
-    "activation": "relu"
+    "activation": "relu",
+    "lr_decay_factor": 0.5, 
+    "lr_patience": 10, 
+    "optimizer": "adam"
 }

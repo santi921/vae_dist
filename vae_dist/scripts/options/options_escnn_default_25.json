@@ -25,5 +25,8 @@
     "bias": true,
     "initializer": "equi_var",
     "beta": 1.0,
-    "reconstruction_loss": "mse"
+    "reconstruction_loss": "mse",
+    "lr_decay_factor": 0.5, 
+    "lr_patience": 10, 
+    "optimizer": "adam"
 }
