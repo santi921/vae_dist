@@ -9,22 +9,12 @@ from pytorch_lightning.callbacks import (
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 from vae_dist.dataset.dataset import FieldDatasetSupervised, dataset_split_loader
+from vae_dist.core.parameters import set_enviroment
 from vae_dist.core.training_utils import (
     construct_model,
     LogParameters,
     InputMonitor,
 )
-from vae_dist.core.intializers import *
-
-
-def set_enviroment():
-    from torch.multiprocessing import set_start_method
-
-    torch.set_float32_matmul_precision("high")
-    try:
-        set_start_method("spawn")
-    except RuntimeError:
-        pass
 
 
 if __name__ == "__main__":
@@ -64,6 +54,19 @@ if __name__ == "__main__":
     wandb.config.update({"model": model_select, "epochs": epochs, "data": root})
     wandb.config.update(options)
 
+    pre_process_options = {
+        "transform": False,
+        "augmentation": False,
+        "standardize": True,
+        "lower_filter": True,
+        "log_scale": True,
+        "min_max_scale": False,
+        "wrangle_outliers": False,
+        "scalar": False,
+        "offset": 1,
+    }
+    wandb.config.update(pre_process_options)
+    options.update(pre_process_options)
 
     dataset_vanilla = FieldDatasetSupervised(
         root,
@@ -79,7 +82,6 @@ if __name__ == "__main__":
         scalar=options["scalar"],
         offset=options["offset"],
     )
-
 
     # load model to gpu
     model.to(device)
@@ -126,8 +128,14 @@ if __name__ == "__main__":
         filename="{epoch:02d}-{val_loss:.2f}",
         mode="min",
     )
-    callbacks = [early_stop_callback, lr_monitor, log_parameters, checkpoint_callback, InputMonitor()]
-    
+    callbacks = [
+        early_stop_callback,
+        lr_monitor,
+        log_parameters,
+        checkpoint_callback,
+        InputMonitor(),
+    ]
+
     trainer = pl.Trainer(
         max_epochs=epochs,
         accelerator="gpu",
@@ -146,7 +154,7 @@ if __name__ == "__main__":
 
     trainer.fit(model, dataset_train, dataset_val)
     model.eval()
-    
+
     # save state dict
     print("Saving model to: ", log_save_dir + "/model_supervised_datapoint.ckpt")
     torch.save(model.state_dict(), log_save_dir + "/model_supervised_datapoint.ckpt")

@@ -10,17 +10,13 @@ from pytorch_lightning.callbacks import (
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 from vae_dist.dataset.dataset import FieldDataset
-from vae_dist.core.training_utils import construct_model, LogParameters, InputMonitor
-
-
-def set_enviroment():
-    from torch.multiprocessing import set_start_method
-
-    torch.set_float32_matmul_precision("high")
-    try:
-        set_start_method("spawn")
-    except RuntimeError:
-        pass
+from vae_dist.core.parameters import set_enviroment
+from vae_dist.core.training_utils import (
+    construct_model,
+    LogParameters,
+    InputMonitor,
+)
+from vae_dist.core.parameters import set_enviroment
 
 
 if __name__ == "__main__":

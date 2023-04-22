@@ -9,19 +9,7 @@ from escnn import nn
 
 from vae_dist.core.losses import stepwise_inverse_huber_loss, inverse_huber
 from vae_dist.core.escnnlayers import R3Upsampling
-
-# from vae_dist.core.training_utils import pull_default_escnn_params
-
-
-def pull_default_escnn_params(dim=3):
-    from escnn import gspaces, nn, group
-
-    g = group.o3_group()
-    gspace = gspaces.flipRot3dOnR3(maximum_frequency=10)
-    input_out_reps = dim * [gspace.trivial_repr]
-    feat_type_in = nn.FieldType(gspace, input_out_reps)
-    feat_type_out = nn.FieldType(gspace, input_out_reps)
-    return group, gspace, feat_type_in, feat_type_out, input_out_reps
+from vae_dist.core.parameters import pull_escnn_params
 
 
 class R3VAE(pl.LightningModule):
@@ -37,7 +25,6 @@ class R3VAE(pl.LightningModule):
         batch_norm=False,
         max_pool=False,
         bias=True,
-        stride=[1],
         fully_connected_layers=[64, 64, 64],
         log_wandb=True,
         im_dim=21,
@@ -51,6 +38,7 @@ class R3VAE(pl.LightningModule):
         optimizer="adam",
         lr_decay_factor=0.5,
         lr_patience=30,
+        escnn_params={},
         **kwargs,
     ):
         super().__init__()
@@ -96,11 +84,6 @@ class R3VAE(pl.LightningModule):
         self.hparams.update(params)
         self.save_hyperparameters()
 
-        # params["in_type"] = feat_type_in
-        # params["out_type"] = feat_type_out
-        # params["group"] = group
-        # params["gspace"] = gspace
-
         self.list_dec_fully = []
         self.list_enc_fully = []
         self.decoder_conv_list = []
@@ -110,16 +93,14 @@ class R3VAE(pl.LightningModule):
             group,
             gspace,
             feat_type_in,
-            _,
-            input_out_reps,
-        ) = pull_default_escnn_params()
-        
+        ) = pull_escnn_params(escnn_params)
+
         gspace = gspace
         group = group
-        
-        #feat_type_out = feat_type_out
+
+        # feat_type_out = feat_type_out
         self.feat_type_in = feat_type_in
-        #feat_type_hidden = nn.FieldType(gspace, latent_dim * [gspace.trivial_repr])
+        # feat_type_hidden = nn.FieldType(gspace, latent_dim * [gspace.trivial_repr])
         self.dense_out_type = nn.FieldType(
             gspace, self.hparams.channels[-1] * [gspace.trivial_repr]
         )
@@ -464,13 +445,17 @@ class R3VAE(pl.LightningModule):
         print("Model Created!")
 
     def configure_optimizers(self):
-        if self.hparams.optimizer == "Adam": 
+        if self.hparams.optimizer == "Adam":
             print("Using Adam Optimizer")
-            optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+            optimizer = torch.optim.Adam(
+                self.parameters(), lr=self.hparams.learning_rate
+            )
         else:
             print("Using SGD Optimizer")
-            optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
-        
+            optimizer = torch.optim.SGD(
+                self.parameters(), lr=self.hparams.learning_rate
+            )
+
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode="max",

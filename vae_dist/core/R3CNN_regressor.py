@@ -8,17 +8,7 @@ from torch.nn import functional as F
 # from torchmetrics.functional.classification import multiclass_f1_score, multiclass_accuracy
 import torchmetrics
 from vae_dist.core.metrics import *
-
-
-def pull_default_escnn_params(dim=3):
-    from escnn import gspaces, nn, group
-
-    #g = group.o3_group()
-    gspace = gspaces.flipRot3dOnR3(maximum_frequency=10)
-    input_out_reps = dim * [gspace.trivial_repr]
-    feat_type_in = nn.FieldType(gspace, input_out_reps)
-    #feat_type_out = nn.FieldType(gspace, input_out_reps)
-    return group, gspace, feat_type_in
+from vae_dist.core.parameters import pull_escnn_params
 
 
 class R3CNNRegressor(pl.LightningModule):
@@ -41,6 +31,7 @@ class R3CNNRegressor(pl.LightningModule):
         optimizer="adam",
         lr_decay_factor=0.5,
         lr_patience=30,
+        escnn_params={},
         **kwargs,
     ):
         super().__init__()
@@ -48,12 +39,12 @@ class R3CNNRegressor(pl.LightningModule):
         assert len(channels) == len(
             stride_in
         ), "channels and stride must be the same length"
-        
+
         assert len(stride_in) == len(
             kernel_size_in
         ), "stride and kernel_size must be the same length"
-        
-        self.learning_rate = learning_rate # this allows the lr finder to work
+
+        self.learning_rate = learning_rate  # this allows the lr finder to work
         params = {
             "channels": channels,
             "padding": 0,
@@ -85,7 +76,7 @@ class R3CNNRegressor(pl.LightningModule):
             group,
             gspace,
             feat_type_in,
-        ) = pull_default_escnn_params()
+        ) = pull_escnn_params(escnn_params)
 
         gspace = gspace
         group = group
@@ -322,13 +313,17 @@ class R3CNNRegressor(pl.LightningModule):
         self.log_dict(out_dict, prog_bar=True)
 
     def configure_optimizers(self):
-        if self.hparams.optimizer == "Adam": 
+        if self.hparams.optimizer == "Adam":
             print("Using Adam Optimizer")
-            optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+            optimizer = torch.optim.Adam(
+                self.parameters(), lr=self.hparams.learning_rate
+            )
         else:
             print("Using SGD Optimizer")
-            optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
-        
+            optimizer = torch.optim.SGD(
+                self.parameters(), lr=self.hparams.learning_rate
+            )
+
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode="max",

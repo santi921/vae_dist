@@ -8,14 +8,13 @@ from pytorch_lightning.callbacks import (
 )
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
-from vae_dist.core.intializers import *
 from vae_dist.dataset.dataset import FieldDataset, dataset_split_loader
 from vae_dist.core.training_utils import (
     construct_model,
-    hyperparameter_dicts,
     LogParameters,
     InputMonitor,
 )
+from vae_dist.core.parameters import set_enviroment, hyperparameter_dicts
 
 
 class training:
@@ -260,7 +259,7 @@ if __name__ == "__main__":
         model=model,
         device=device,
         transform=pre_process_options["transform"],
-        aug=pre_process_options["augmentation"],
+        augmentation=pre_process_options["augmentation"],
         standardize=pre_process_options["standardize"],
         lower_filter=pre_process_options["lower_filter"],
         log_scale=pre_process_options["log_scale"],

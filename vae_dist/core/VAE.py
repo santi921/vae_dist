@@ -5,6 +5,7 @@ from torch.nn import functional as F
 import pytorch_lightning as pl
 from torchsummary import summary
 from torchmetrics import MeanSquaredError, MeanAbsoluteError
+from typing import Tuple
 
 from vae_dist.core.layers import UpConvBatch, ConvBatch
 from vae_dist.core.losses import stepwise_inverse_huber_loss, inverse_huber
@@ -277,7 +278,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
         x = self.decoder(z)
         return x
 
-    def encode(self, x: torch.Tensor) -> torch.Tensor:
+    def encode(self, x: torch.Tensor) -> "Tuple[torch.Tensor, torch.Tensor]":
         x = self.encoder(x)
         # print(x.shape)
         x = x.view(x.size(0), -1)

@@ -1,19 +1,12 @@
-# TODO: modify for new parameters
-
-import wandb, argparse
-import matplotlib.pyplot as plt
-
-from sklearn.metrics import r2_score
-
-import torch
+import wandb, argparse, torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import (
     LearningRateMonitor,
     EarlyStopping,
     ModelCheckpoint,
 )
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
-from vae_dist.core.intializers import *
 from vae_dist.dataset.dataset import FieldDatasetSupervised, dataset_split_loader
 from vae_dist.core.training_utils import (
     construct_model,
@@ -21,17 +14,8 @@ from vae_dist.core.training_utils import (
     LogParameters,
     InputMonitor,
 )
-from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
-
-
-def set_enviroment():
-    from torch.multiprocessing import set_start_method
-
-    torch.set_float32_matmul_precision("high")
-    try:
-        set_start_method("spawn")
-    except RuntimeError:
-        pass
+from vae_dist.core.parameters import set_enviroment
+from vae_dist.core.intializers import equi_var_init, xavier_init, kaiming_init
 
 
 class training:
@@ -58,7 +42,6 @@ class training:
         self.supervised_file = supervised_file
 
     def make_model(self, config):
-            
         dataset = FieldDatasetSupervised(
             self.data_dir,
             self.supervised_file,
@@ -73,14 +56,14 @@ class training:
             scalar=self.scalar,
             offset=self.offset,
         )
-        print("-"*30)
+        print("-" * 30)
         print("Some info...")
         print("model: ", self.model)
         print("device: ", self.device)
         print("data_dir: ", self.data_dir)
         print("supervised_file: ", self.supervised_file)
         print("project: ", self.project)
-        print("-"*30)
+        print("-" * 30)
 
         # check if dataset has any inf or nan values
         print(
@@ -134,7 +117,13 @@ class training:
             filename="{epoch:02d}-{val_loss:.2f}",
             mode="min",
         )
-        callbacks = [ early_stop_callback, lr_monitor, log_parameters, InputMonitor(), checkpoint_callback,]
+        callbacks = [
+            early_stop_callback,
+            lr_monitor,
+            log_parameters,
+            InputMonitor(),
+            checkpoint_callback,
+        ]
         trainer = pl.Trainer(
             max_epochs=config["max_epochs"],
             accelerator="gpu",
@@ -158,7 +147,7 @@ class training:
             config = wandb.config
             model_obj, trainer, log_save_dir = self.make_model(config)
             print("-" * 20 + "Training in tuner" + "-" * 20)
-            
+
             wandb.log(
                 {
                     "aug": self.aug,
@@ -166,11 +155,11 @@ class training:
                     "scalar": self.scalar,
                     "offset": self.offset,
                     "model": self.model,
-                    #"device": self.device,
+                    # "device": self.device,
                     "data_dir": self.data_dir,
                 }
             )
-            #print("-" * 20 + "Training in tuner" + "-" * 20)
+            # print("-" * 20 + "Training in tuner" + "-" * 20)
             trainer.fit(model_obj, self.data_loader_train, self.data_loader_test)
 
             model_obj.eval()
@@ -252,7 +241,7 @@ if __name__ == "__main__":
     }
 
     sweep_id = wandb.sweep(sweep_config, project=project_name)
-    
+
     training_obj = training(
         data_dir,
         super_file,

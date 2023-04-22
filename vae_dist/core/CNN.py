@@ -382,13 +382,17 @@ class CNNAutoencoderLightning(pl.LightningModule):
         self.log_dict(out_dict, prog_bar=True)
 
     def configure_optimizers(self):
-        if self.hparams.optimizer == "Adam": 
+        if self.hparams.optimizer == "Adam":
             print("Using Adam Optimizer")
-            optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+            optimizer = torch.optim.Adam(
+                self.parameters(), lr=self.hparams.learning_rate
+            )
         else:
             print("Using SGD Optimizer")
-            optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
-        
+            optimizer = torch.optim.SGD(
+                self.parameters(), lr=self.hparams.learning_rate
+            )
+
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode="max",

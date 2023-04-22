@@ -11,18 +11,7 @@ from vae_dist.core.training_utils import (
     InputMonitor,
     CheckBatchGradient,
 )
-from vae_dist.core.intializers import xavier_init, kaiming_init, orthogonal_init
-
-
-def set_enviroment():
-    from torch.multiprocessing import set_start_method
-
-    torch.set_float32_matmul_precision("high")
-    try:
-        set_start_method("spawn")
-    except RuntimeError:
-        pass
-
+from vae_dist.core.parameters import set_enviroment
 
 if __name__ == "__main__":
     set_enviroment()
