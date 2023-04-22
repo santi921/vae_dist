@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-import scipy.ndimage
 from torch.functional import F
 from copy import deepcopy
 
@@ -62,7 +61,11 @@ def z_rotation(vector, theta):
     return np.dot(R, vector)
 
 
-def augment_mat_field(mat, xy, z, rot=0):
+def augment_mat_field(
+        mat:np.ndarray, 
+        xy:bool, 
+        z:bool, 
+        rot:int=0):
     aug_mat = []
     aug_mat.append(mat)
 

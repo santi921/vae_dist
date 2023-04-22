@@ -11,7 +11,7 @@ from vae_dist.core.training_utils import (
     InputMonitor,
     CheckBatchGradient,
 )
-from vae_dist.core.intializers import *
+from vae_dist.core.intializers import xavier_init, kaiming_init, orthogonal_init
 
 
 def set_enviroment():

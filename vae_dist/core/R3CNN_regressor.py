@@ -13,12 +13,12 @@ from vae_dist.core.metrics import *
 def pull_default_escnn_params(dim=3):
     from escnn import gspaces, nn, group
 
-    g = group.o3_group()
+    #g = group.o3_group()
     gspace = gspaces.flipRot3dOnR3(maximum_frequency=10)
     input_out_reps = dim * [gspace.trivial_repr]
     feat_type_in = nn.FieldType(gspace, input_out_reps)
-    feat_type_out = nn.FieldType(gspace, input_out_reps)
-    return group, gspace, feat_type_in, feat_type_out, input_out_reps
+    #feat_type_out = nn.FieldType(gspace, input_out_reps)
+    return group, gspace, feat_type_in
 
 
 class R3CNNRegressor(pl.LightningModule):
@@ -29,7 +29,7 @@ class R3CNNRegressor(pl.LightningModule):
         dropout,
         bias,
         kernel_size_in=5,
-        latent_dim=3,  # three output dimension for classification
+        latent_dim=3,  # three output dimension for 3-cat classification
         max_pool=False,
         batch_norm=False,
         max_pool_kernel_size_in=2,
@@ -44,7 +44,16 @@ class R3CNNRegressor(pl.LightningModule):
         **kwargs,
     ):
         super().__init__()
-        self.learning_rate = learning_rate
+
+        assert len(channels) == len(
+            stride_in
+        ), "channels and stride must be the same length"
+        
+        assert len(stride_in) == len(
+            kernel_size_in
+        ), "stride and kernel_size must be the same length"
+        
+        self.learning_rate = learning_rate # this allows the lr finder to work
         params = {
             "channels": channels,
             "padding": 0,
@@ -67,13 +76,6 @@ class R3CNNRegressor(pl.LightningModule):
             "lr_patience": lr_patience,
         }
 
-        assert len(channels) == len(
-            stride_in
-        ), "channels and stride must be the same length"
-        assert len(stride_in) == len(
-            kernel_size_in
-        ), "stride and kernel_size must be the same length"
-        
         self.hparams.update(params)
         self.save_hyperparameters()
         self.list_enc_fully = []
@@ -83,7 +85,6 @@ class R3CNNRegressor(pl.LightningModule):
             group,
             gspace,
             feat_type_in,
-            _, _,
         ) = pull_default_escnn_params()
 
         gspace = gspace
@@ -226,7 +227,6 @@ class R3CNNRegressor(pl.LightningModule):
         x = self.encoder_conv(x)
         x = x.tensor
         x = x.reshape(x.shape[0], -1)
-
         x = self.encoder_fully_net(x)
         return x
 

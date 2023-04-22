@@ -2,19 +2,28 @@ import numpy as np
 import networkx as nx
 from plotly.offline import iplot
 import plotly.graph_objects as go
+from typing import List, Tuple
+import pytorch_lightning as pl
 
 from vae_dist.data.rdkit import xyz2AC_vdW, pdb_to_xyz, get_AC
 from vae_dist.dataset.fields import split_and_filter, pull_fields
 from vae_dist.data.dictionaries import *
+from vae_dist.dataset.dataset import FieldDataset
 
-
-def filter_xyz_by_distance(xyz, center=[0, 0, 0], distance=5):
+def filter_xyz_by_distance(
+        xyz: np.ndarray, 
+        center: List = [0, 0, 0], 
+        distance: int = 5):
     xyz = np.array(xyz, dtype=float)
     center = np.array(center, dtype=float)
     return xyz[np.linalg.norm(xyz - center, axis=1) < distance]
 
 
-def filter_other_by_distance(xyz, other, center=[0, 0, 0], distance=5):
+def filter_other_by_distance(
+        xyz: np.ndarray, 
+        other: List, 
+        center: List = [0, 0, 0], 
+        distance: int = 5):
     xyz = np.array(xyz, dtype=float)
     center = np.array(center, dtype=float)
     mask = np.linalg.norm(xyz - center, axis=1) < distance
@@ -22,7 +31,8 @@ def filter_other_by_distance(xyz, other, center=[0, 0, 0], distance=5):
     return [other[i] for i in mask]
 
 
-def connectivity_to_list_of_bonds(connectivity_mat):
+def connectivity_to_list_of_bonds(
+        connectivity_mat: np.ndarray):
     bonds = []
     for i in range(len(connectivity_mat)):
         for j in range(i + 1, len(connectivity_mat)):
@@ -32,7 +42,8 @@ def connectivity_to_list_of_bonds(connectivity_mat):
 
 
 def get_nodes_and_edges_from_pdb(
-    file="../../data/pdbs_processed/1a4e.pdb", distance_filter=5.0
+    file: str = "../../data/pdbs_processed/1a4e.pdb", 
+    distance_filter: float = 5.0
 ):
     xyz, charge, atom = pdb_to_xyz(file)
     filtered_xyz = filter_xyz_by_distance(
@@ -50,7 +61,11 @@ def get_nodes_and_edges_from_pdb(
 
 
 def shift_and_rotate(
-    xyz_list, center=[0, 0, 0], x_axis=[1, 0, 0], y_axis=[0, 1, 0], z_axis=[0, 0, 1]
+    xyz_list: list, 
+    center: list = [0, 0, 0], 
+    x_axis: list = [1, 0, 0], 
+    y_axis: list = [0, 1, 0], 
+    z_axis: list = [0, 0, 1]
 ):
     for i in range(len(xyz_list)):
         xyz_list[i] = xyz_list[i] - center
@@ -64,7 +79,8 @@ def shift_and_rotate(
     return xyz_list
 
 
-def plot_nodes_edge(file="../../data/pdbs_processed/1a4e.pdb"):
+def plot_nodes_edge(
+        file: str="../../data/pdbs_processed/1a4e.pdb"):
     G = nx.Graph()
     atom_list, bond_list, xyz_list = get_nodes_and_edges_from_pdb(
         "../../data/pdbs_processed/1a4e.pdb", distance_filter=8.0
@@ -140,11 +156,11 @@ def plot_nodes_edge(file="../../data/pdbs_processed/1a4e.pdb"):
 
 
 def get_cones_viz_from_pca(
-    vector_scale=3,
-    components=10,
-    dir_fields="../../data/cpet/",
-    bounds_dict={"x": [-3, 3.3], "y": [-3, 3.3], "z": [-3, 3.3]},
-    steps_dict={"x": 0.3, "y": 0.3, "z": 0.3},
+    vector_scale:int=3,
+    components:int=10,
+    dir_fields: str="../../data/cpet/",
+    bounds_dict: dict={"x": [-3, 3.3], "y": [-3, 3.3], "z": [-3, 3.3]},
+    steps_dict: dict={"x": 0.3, "y": 0.3, "z": 0.3},
 ):
     cones = []
 
@@ -201,11 +217,14 @@ def get_cones_viz_from_pca(
 
 
 def get_latent_space(
-    model, dataset, comp=[0, 2], latent_dim=10, field_dims=(3, 21, 21, 21)
+    model: pl.LightningModule, 
+    dataset: FieldDataset, 
+    comp:list=[0, 2], 
+    latent_dim:int=10, 
+    field_dims:Tuple=(3, 21, 21, 21)
 ):
     latent_space = []
     # convert load to numpy
-    dataset_loader_np = []
     print("Total number of fields: ", len(dataset))
     for ind in range(len(dataset)):
         field = dataset[ind].reshape(
@@ -222,12 +241,12 @@ def get_latent_space(
 
 def plot_vfield(
     mat,
-    cutoff_low=95,
-    cutoff_high=99.999,
-    min_max=True,
-    scale=10,
-    bounds_dict={"x": [-3, 3.3], "y": [-3, 3.3], "z": [-3, 3.3]},
-    steps_dict={"x": 0.3, "y": 0.3, "z": 0.3},
+    cutoff_low: float=95,
+    cutoff_high: float=99.999,
+    min_max: bool=True,
+    scale: int=10,
+    bounds_dict: dict={"x": [-3, 3.3], "y": [-3, 3.3], "z": [-3, 3.3]},
+    steps_dict: dict={"x": 0.3, "y": 0.3, "z": 0.3},
 ):
     # mat has shape (1, 3, 21, 21, 21)
     x = mat

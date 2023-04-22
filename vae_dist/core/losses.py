@@ -1,7 +1,11 @@
 import torch
 
 
-def stepwise_inverse_huber_loss(x, y, delta1=1.0, delta2=0.1):
+def stepwise_inverse_huber_loss(
+        x: torch.Tensor, 
+        y: torch.Tensor, 
+        delta1:float=1.0, 
+        delta2:float=0.1):
     """
     Computes the stepwise huber loss for a batch of data.
     Takes
@@ -28,7 +32,10 @@ def stepwise_inverse_huber_loss(x, y, delta1=1.0, delta2=0.1):
     return loss.mean()
 
 
-def inverse_huber(x, y, delta=1.0):
+def inverse_huber(
+        x: torch.Tensor, 
+        y: torch.Tensor, 
+        delta: float=1.0):
     """
     Computes the stepwise huber loss for a batch of data.
     Takes

@@ -1,9 +1,8 @@
 from escnn.gspaces import *
 from escnn.nn import FieldType
 from escnn.nn import GeometricTensor
-
-
 from escnn.nn.modules.equivariant_module import EquivariantModule
+from escnn.gspace import GSpace
 from typing import Tuple, Optional, Union
 
 import torch

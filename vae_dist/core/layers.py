@@ -6,17 +6,17 @@ from torch import nn
 class UpConvBatch(nn.Module):
     def __init__(
         self,
-        in_channels,
-        out_channels,
-        kernel_size,
-        stride,
-        padding,
-        dilation,
-        groups,
-        bias,
-        padding_mode,
-        output_padding,
-        output_layer=False,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int,
+        padding: int,
+        dilation: int,
+        groups: int,
+        bias: bool,
+        padding_mode: str,
+        output_padding: int,
+        output_layer: bool=False,
     ):
         super(UpConvBatch, self).__init__()
         if output_layer:
@@ -66,15 +66,15 @@ class UpConvBatch(nn.Module):
 class ConvBatch(nn.Module):
     def __init__(
         self,
-        in_channels,
-        out_channels,
-        kernel_size,
-        stride,
-        padding,
-        dilation,
-        groups,
-        bias,
-        padding_mode,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int,
+        padding: int,
+        dilation: int,
+        groups: int,
+        bias: bool,
+        padding_mode: str,
     ):
         super(ConvBatch, self).__init__()
         self.conv = nn.Sequential(

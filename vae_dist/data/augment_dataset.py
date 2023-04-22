@@ -4,7 +4,11 @@ from vae_dist.dataset.fields import mat_pull
 from vae_dist.data.augmentation import Augment
 
 
-def write_mat(mat, filename, start_line="", spacing=0.3):
+def write_mat(
+        mat:np.ndarray, 
+        filename:str, 
+        start_line:str="", 
+        spacing:float=0.3):
     # write seven empty lines
 
     with open(filename, "w") as f:

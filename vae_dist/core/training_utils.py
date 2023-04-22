@@ -81,7 +81,11 @@ def train(model, data_loader, epochs=20):
         print("epoch: {} loss: {}".format(epoch, running_loss))
 
 
-def construct_model(model, options, im_dim=21, scalar_field=False):
+def construct_model(
+        model:str, 
+        options:dict, 
+        im_dim:int=21, 
+        scalar_field:bool=False):
     """
     Constructs a model based on the model name and options.
     Takes
@@ -163,7 +167,8 @@ def construct_model(model, options, im_dim=21, scalar_field=False):
     return model
 
 
-def hyperparameter_dicts(image_size=21):
+def hyperparameter_dicts(
+        image_size:int=21):
     assert image_size == 21 or image_size == 51, "image size must be 21 or 51"
 
     dict_ret = {}
