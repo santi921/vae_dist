@@ -71,10 +71,15 @@ class R3CNNRegressor(pl.LightningModule):
         self.hparams.update(params)
         self.save_hyperparameters()
         self.encoder_conv_list, self.list_enc_fully = [], []
-        print("channels: " + str(self.hparams.channels))
+
         (group, gspace, rep_list) = pull_escnn_params(
             escnn_params, self.hparams.channels
         )
+
+        if escnn_params["flips_r3"]:
+            id_tuple = "so3"
+        else:
+            id_tuple = "so3"
 
         gspace = gspace
         group = group
@@ -131,19 +136,18 @@ class R3CNNRegressor(pl.LightningModule):
             if self.hparams.batch_norm:
                 self.encoder_conv_list.append(nn.IIDBatchNorm3d(out_type, affine=False))
 
-            # self.encoder_conv_list.append(nn.ReLU(out_type, inplace=False))
             self.encoder_conv_list.append(nn.NormNonLinearity(out_type))
 
             if dropout > 0:
-                # self.encoder_conv_list.append(nn.PointwiseDropout(out_type, p=dropout))
                 self.encoder_conv_list.append(nn.FieldDropout(out_type, p=dropout))
+                # self.encoder_conv_list.append(nn.PointwiseDropout(out_type, p=dropout))
 
             if self.hparams.max_pool and ind in self.hparams.max_pool_loc_in:
                 self.encoder_conv_list.append(
                     nn.PointwiseAvgPoolAntialiased3D(
                         out_type,
                         stride=self.hparams.max_pool_kernel_size_in,
-                        sigma=0.66,
+                        sigma=0.33,
                     )
                 )
 
@@ -225,9 +229,7 @@ class R3CNNRegressor(pl.LightningModule):
         x = self.feat_type_in(x)
         x = self.encoder_conv(x)
         x = x.tensor
-        # print(x.shape)
         x = x.reshape(x.shape[0], -1)
-        # print(x.shape)
         x = self.encoder_fully_net(x)
         return x
 

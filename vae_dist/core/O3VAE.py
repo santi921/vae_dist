@@ -90,21 +90,18 @@ class R3VAE(pl.LightningModule):
         self.decoder_conv_list = []
         self.encoder_conv_list = []
 
-        (
-            group,
-            gspace,
-            feat_type_in,
-        ) = pull_escnn_params(escnn_params)
+        (group, gspace, rep_list_in, rep_list_out) = pull_escnn_params(
+            escnn_params, self.hparams.channels, self.hparams.channels
+        )
 
         gspace = gspace
         group = group
 
-        # feat_type_out = feat_type_out
-        self.feat_type_in = feat_type_in
-        # feat_type_hidden = nn.FieldType(gspace, latent_dim * [gspace.trivial_repr])
-        self.dense_out_type = nn.FieldType(
-            gspace, self.hparams.channels[-1] * [gspace.trivial_repr]
-        )
+        self.feat_type_in = rep_list_in[0]
+        self.dense_out_type = rep_list_in[-1]
+        # self.dense_out_type = nn.FieldType(
+        #    gspace, self.hparams.channels[-1] * [gspace.trivial_repr]
+        # )
 
         trigger = 0
         inner_dim = self.hparams.im_dim
@@ -124,16 +121,105 @@ class R3VAE(pl.LightningModule):
 
         print("inner_dim: ", inner_dim)
 
+        ind_channels = 0
+        for ind in range(len(self.hparams.channels)):
+            in_type = rep_list_in[ind_channels]
+            out_type = rep_list_in[ind_channels + 1]
+            ind_channels += 1
+
+            print("in_type: {} out_type: {}".format(in_type, out_type))
+
+            self.encoder_conv_list.append(
+                nn.R3Conv(
+                    in_type=in_type,
+                    out_type=out_type,
+                    kernel_size=kernel_size_in[ind],
+                    stride=stride_in[ind],
+                    bias=self.hparams.bias,
+                )
+            )
+            if self.hparams.batch_norm:
+                self.encoder_conv_list.append(nn.IIDBatchNorm3d(out_type, affine=True))
+
+            # self.encoder_conv_list.append(nn.ReLU(out_type, inplace=False))
+            self.encoder_conv_list.append(nn.NormNonLinearity(out_type))
+
+            output_padding = 0
+            # if inner_dim%2 == 1 and ind == len(self.hparams.channels)-1:
+            #    output_padding = 1
+
+            if dropout > 0:
+                # self.encoder_conv_list.append(nn.PointwiseDropout(out_type, p=dropout))
+                self.encoder_conv_list.append(nn.FieldDropout(out_type, p=dropout))
+
+            if trigger:
+                self.decoder_conv_list.append(
+                    R3Upsampling(
+                        in_type,
+                        scale_factor=self.hparams.max_pool_kernel_size_out,
+                        mode="nearest",
+                        align_corners=False,
+                    )
+                )
+                trigger = 0
+
+            if self.hparams.max_pool and ind in self.hparams.max_pool_kernel_size_in:
+                self.encoder_conv_list.append(
+                    nn.PointwiseAvgPoolAntialiased3D(
+                        out_type,
+                        stride=self.hparams.max_pool_kernel_size_in,
+                        sigma=0.33,
+                    )
+                )
+                trigger = 1
+
+            if dropout > 0:
+                # self.decoder_conv_list.append(nn.PointwiseDropout(in_type, p=dropout))
+                self.decoder_conv_list.append(nn.FieldDropout(in_type, p=dropout))
+
+            # decoder
+            if ind == 0:
+                self.decoder_conv_list.append(nn.IdentityModule(in_type))
+            else:
+                # self.decoder_conv_list.append(nn.ReLU(in_type, inplace=False))
+                self.decoder_conv_list.append(nn.NormNonLinearity(in_type))
+
+            if self.hparams.batch_norm:
+                self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type, affine=True))
+
+            self.decoder_conv_list.append(
+                nn.R3ConvTransposed(
+                    in_type=out_type,
+                    out_type=in_type,
+                    stride=stride_out[ind],
+                    kernel_size=kernel_size_out[ind],
+                    bias=self.hparams.bias,
+                    output_padding=output_padding,
+                )
+            )
+
         for ind, h in enumerate(self.hparams.fully_connected_layers):
             # if it's the last item in the list, then we want to output the latent dim
             if ind == 0:
+                # self.list_dec_fully.append(
+                #    torch.nn.Unflatten(
+                #        1, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim)
+                #    )
+                # )
                 self.list_dec_fully.append(
                     torch.nn.Unflatten(
-                        1, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim)
+                        1,
+                        (
+                            self.encoder_conv_list[-1].out_type.size,
+                            inner_dim,
+                            inner_dim,
+                            inner_dim,
+                        ),
                     )
                 )
                 self.list_enc_fully.append(torch.nn.Flatten())
-                h_in = self.hparams.channels[-1] * inner_dim * inner_dim * inner_dim
+                # h_in = self.hparams.channels[-1] * inner_dim * inner_dim * inner_dim
+                h_in = self.encoder_conv_list[-1].out_type.size
                 h_out = h
             else:
                 h_in = self.hparams.fully_connected_layers[ind - 1]
@@ -159,85 +245,6 @@ class R3VAE(pl.LightningModule):
 
             self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
 
-        for ind in range(len(self.hparams.channels)):
-            if ind == 0:
-                in_type = feat_type_in
-                channel_out = self.hparams.channels[0]
-
-            else:
-                channel_in = self.hparams.channels[ind - 1]
-                channel_out = self.hparams.channels[ind]
-                in_type = nn.FieldType(gspace, channel_in * [gspace.trivial_repr])
-
-            out_type = nn.FieldType(gspace, channel_out * [gspace.trivial_repr])
-
-            print("in_type: {} out_type: {}".format(in_type, out_type))
-
-            self.encoder_conv_list.append(
-                nn.R3Conv(
-                    in_type=in_type,
-                    out_type=out_type,
-                    kernel_size=kernel_size_in[ind],
-                    stride=stride_in[ind],
-                    bias=self.hparams.bias,
-                )
-            )
-            if self.hparams.batch_norm:
-                self.encoder_conv_list.append(nn.IIDBatchNorm3d(out_type, affine=True))
-
-            self.encoder_conv_list.append(nn.ReLU(out_type, inplace=False))
-
-            output_padding = 0
-            # if inner_dim%2 == 1 and ind == len(self.hparams.channels)-1:
-            #    output_padding = 1
-
-            if dropout > 0:
-                self.encoder_conv_list.append(nn.PointwiseDropout(out_type, p=dropout))
-
-            if trigger:
-                self.decoder_conv_list.append(
-                    R3Upsampling(
-                        in_type,
-                        scale_factor=self.hparams.max_pool_kernel_size_out,
-                        mode="nearest",
-                        align_corners=False,
-                    )
-                )
-                trigger = 0
-
-            if self.hparams.max_pool and ind in self.hparams.max_pool_kernel_size_in:
-                self.encoder_conv_list.append(
-                    nn.PointwiseAvgPoolAntialiased3D(
-                        out_type,
-                        stride=self.hparams.max_pool_kernel_size_in,
-                        sigma=0.66,
-                    )
-                )
-                trigger = 1
-
-            if dropout > 0:
-                self.decoder_conv_list.append(nn.PointwiseDropout(in_type, p=dropout))
-
-            # decoder
-            if ind == 0:
-                self.decoder_conv_list.append(nn.IdentityModule(in_type))
-            else:
-                self.decoder_conv_list.append(nn.ReLU(in_type, inplace=False))
-
-            if self.hparams.batch_norm:
-                self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type, affine=True))
-
-            self.decoder_conv_list.append(
-                nn.R3ConvTransposed(
-                    in_type=out_type,
-                    out_type=in_type,
-                    stride=stride_out[ind],
-                    kernel_size=kernel_size_out[ind],
-                    bias=self.hparams.bias,
-                    output_padding=output_padding,
-                )
-            )
-
         # sampling layers
         self.fc_mu = torch.nn.Linear(
             self.hparams.fully_connected_layers[-1], self.hparams.latent_dim
@@ -248,6 +255,7 @@ class R3VAE(pl.LightningModule):
         h_out = self.hparams.latent_dim
         torch.nn.init.zeros_(self.fc_var.bias)
         torch.nn.init.zeros_(self.fc_mu.bias)
+
         self.list_dec_fully.append(
             torch.nn.Linear(
                 self.hparams.latent_dim, self.hparams.fully_connected_layers[-1]
@@ -263,11 +271,24 @@ class R3VAE(pl.LightningModule):
         self.decoder = nn.SequentialModule(*self.decoder_conv_list)
         self.model = nn.SequentialModule(self.encoder, self.decoder)
 
-        summary(
-            self.encoder_fully_net,
-            (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim),
-            device="cpu",
-        )
+        try:
+            summary(
+                self.encoder_fully_net,
+                (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim),
+                device="cpu",
+            )
+        except:
+            summary(
+                self.encoder_fully_net,
+                (
+                    self.encoder_conv_list[-1].out_type.size,
+                    inner_dim,
+                    inner_dim,
+                    inner_dim,
+                ),
+                device="cpu",
+            )
+
         summary(self.decoder_fully_net, tuple([latent_dim]), device="cpu")
 
         self.train_rmse = MeanSquaredError(squared=False)

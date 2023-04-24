@@ -87,18 +87,14 @@ class R3CNN(pl.LightningModule):
         self.decoder_conv_list = []
         self.encoder_conv_list = []
 
-        (
-            group,
-            gspace,
-            feat_type_in,
-        ) = pull_escnn_params(escnn_params)
+        (group, gspace, rep_list_in, rep_list_out) = pull_escnn_params(
+            escnn_params, self.hparams.channels, self.hparams.channels
+        )
 
         gspace = gspace
         group = group
-        self.feat_type_in = feat_type_in
-        self.dense_out_type = nn.FieldType(
-            gspace, self.hparams.channels[-1] * [gspace.trivial_repr]
-        )
+        self.feat_type_in = rep_list_in[0]
+        self.dense_out_type = rep_list_in[-1]
 
         trigger = 0
         inner_dim = self.hparams.im_dim
@@ -116,17 +112,11 @@ class R3CNN(pl.LightningModule):
                         / self.hparams.max_pool_kernel_size_in
                     )
 
+        ind_channels = 0
         for ind in range(len(self.hparams.channels)):
-            if ind == 0:
-                in_type = feat_type_in
-                channel_out = self.hparams.channels[0]
-
-            else:
-                channel_in = self.hparams.channels[ind - 1]
-                channel_out = self.hparams.channels[ind]
-                in_type = nn.FieldType(gspace, channel_in * [gspace.trivial_repr])
-
-            out_type = nn.FieldType(gspace, channel_out * [gspace.trivial_repr])
+            in_type = rep_list_in[ind_channels]
+            out_type = rep_list_in[ind_channels + 1]
+            ind_channels += 1
 
             print("in_type: {} out_type: {}".format(in_type, out_type))
 
@@ -164,7 +154,8 @@ class R3CNN(pl.LightningModule):
             #    output_padding = 1
 
             if dropout > 0:
-                self.encoder_conv_list.append(nn.PointwiseDropout(out_type, p=dropout))
+                # self.encoder_conv_list.append(nn.PointwiseDropout(out_type, p=dropout))
+                self.encoder_conv_list.append(nn.FieldDropout(out_type, p=dropout))
 
             if trigger:
                 self.decoder_conv_list.append(
@@ -188,7 +179,8 @@ class R3CNN(pl.LightningModule):
                 trigger = 1
 
             if dropout > 0:
-                self.decoder_conv_list.append(nn.PointwiseDropout(in_type, p=dropout))
+                # self.decoder_conv_list.append(nn.PointwiseDropout(in_type, p=dropout))
+                self.decoder_conv_list.append(nn.FieldDropout(in_type, p=dropout))
 
             # decoder
             if ind == 0:
@@ -228,13 +220,25 @@ class R3CNN(pl.LightningModule):
         for ind, h in enumerate(self.hparams.fully_connected_layers):
             # if it's the last item in the list, then we want to output the latent dim
             if ind == 0:
+                # self.list_dec_fully.append(
+                #    torch.nn.Unflatten(
+                #        1, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim)
+                #    )
+                # )
                 self.list_dec_fully.append(
                     torch.nn.Unflatten(
-                        1, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim)
+                        1,
+                        (
+                            self.encoder_conv_list[-1].out_type.size,
+                            inner_dim,
+                            inner_dim,
+                            inner_dim,
+                        ),
                     )
                 )
                 self.list_enc_fully.append(torch.nn.Flatten())
-                h_in = self.hparams.channels[-1] * inner_dim * inner_dim * inner_dim
+                # h_in = self.hparams.channels[-1] * inner_dim * inner_dim * inner_dim
+                h_in = self.encoder_conv_list[-1].out_type.size
                 h_out = h
             else:
                 h_in = self.hparams.fully_connected_layers[ind - 1]
@@ -276,6 +280,7 @@ class R3CNN(pl.LightningModule):
 
         # reverse the list
         self.list_dec_fully.reverse()
+        # [print(i) for i in self.list_dec_fully]
         self.decoder_conv_list.reverse()
         self.encoder_fully_net = torch.nn.Sequential(*self.list_enc_fully)
         self.decoder_fully_net = torch.nn.Sequential(*self.list_dec_fully)
@@ -288,12 +293,26 @@ class R3CNN(pl.LightningModule):
         self.train_mae = MeanAbsoluteError()
         self.val_mae = MeanAbsoluteError()
         self.test_mae = MeanAbsoluteError()
-        summary(
-            self.encoder_fully_net,
-            (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim),
-            device="cpu",
-        )
-        summary(self.decoder_fully_net, tuple([latent_dim]), device="cpu")
+
+        try:
+            summary(
+                self.encoder_fully_net,
+                (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim),
+                device="cpu",
+            )
+        except:
+            summary(
+                self.encoder_fully_net,
+                (
+                    self.encoder_conv_list[-1].out_type.size,
+                    inner_dim,
+                    inner_dim,
+                    inner_dim,
+                ),
+                device="cpu",
+            )
+        print("latent_dim: ", self.hparams.latent_dim)
+        summary(self.decoder_fully_net, tuple([self.hparams.latent_dim]), device="cpu")
 
     def encode(self, x):
         x = self.feat_type_in(x)

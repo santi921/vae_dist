@@ -6,7 +6,7 @@ from torchsummary import summary
 import torchmetrics
 
 from vae_dist.core.metrics import *
-from vae_dist.core.layers import UpConvBatch, ConvBatch, ResNetBatch
+from vae_dist.core.layers import UpConvBatch, ConvBatch, ResBlock
 
 
 class CNNRegressor(pl.LightningModule):
@@ -232,7 +232,6 @@ class CNNRegressor(pl.LightningModule):
             batch_size=len(label),
         )
 
-        
         return loss
 
     def compute_metrics(self, mode):
@@ -293,13 +292,17 @@ class CNNRegressor(pl.LightningModule):
         self.log_dict(out_dict, prog_bar=True)
 
     def configure_optimizers(self):
-        if self.hparams.optimizer.lower() == "adam": 
+        if self.hparams.optimizer.lower() == "adam":
             print("Using Adam Optimizer")
-            optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+            optimizer = torch.optim.Adam(
+                self.parameters(), lr=self.hparams.learning_rate
+            )
         else:
             print("Using SGD Optimizer")
-            optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
-        
+            optimizer = torch.optim.SGD(
+                self.parameters(), lr=self.hparams.learning_rate
+            )
+
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode="max",

@@ -13,7 +13,7 @@
   "escnn_group": "so3",
   "flips_r3": true,
   "max_freq": 3,
-  "l_max": 2,
+  "l_max": 1,
   "fully_connected_layers": [500],
   "accumulate_grad_batches": 8,
   "gradient_clip_val": 0.5,

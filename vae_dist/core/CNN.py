@@ -7,7 +7,7 @@ from torchsummary import summary
 from torch.nn import functional as F
 from torchmetrics import MeanSquaredError, MeanAbsoluteError
 
-from vae_dist.core.layers import UpConvBatch, ConvBatch, ResNetBatch
+from vae_dist.core.layers import UpConvBatch, ConvBatch, ResBlock
 from vae_dist.core.losses import stepwise_inverse_huber_loss, inverse_huber
 
 
