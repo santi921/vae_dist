@@ -116,16 +116,15 @@ def construct_model(
     options.update(options["architecture"])
     options.update(options_non_wandb)
 
-    if model in ["escnn", "esvae", "escnn_regressor"]:
-        escnn_dict = {
-            "escnn_parameters": {
-                "scalar": options["scalar"],
-                "escnn_group": options["escnn_group"],
-                "max_freq": options["max_freq"],
-                "flips_r3": options["flips_r3"],
-            }
+    if model in ["escnn", "esvae", "escnn_supervised"]:
+        options["escnn_params"] = {
+            "scalar": options["scalar"],
+            "escnn_group": options["escnn_group"],
+            "max_freq": options["max_freq"],
+            "flips_r3": options["flips_r3"],
+            "l_max": options["l_max"],
         }
-        options.update(escnn_dict)
+    print(options)
 
     if model == "esvae":
         print("building esvae...")
@@ -133,7 +132,6 @@ def construct_model(
 
     elif model == "escnn":
         print("building escnn...")
-
         model = R3CNN(**options)
 
     elif model == "cnn":

@@ -67,6 +67,7 @@ class R3CNN(pl.LightningModule):
             "optimizer": optimizer,
             "lr_decay_factor": lr_decay_factor,
             "lr_patience": lr_patience,
+            "escnn_params": escnn_params,
         }
 
         assert (
@@ -115,59 +116,6 @@ class R3CNN(pl.LightningModule):
                         / self.hparams.max_pool_kernel_size_in
                     )
 
-        print("inner_dim: ", inner_dim)
-
-        for ind, h in enumerate(self.hparams.fully_connected_layers):
-            # if it's the last item in the list, then we want to output the latent dim
-            if ind == 0:
-                self.list_dec_fully.append(
-                    torch.nn.Unflatten(
-                        1, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim)
-                    )
-                )
-                self.list_enc_fully.append(torch.nn.Flatten())
-                h_in = self.hparams.channels[-1] * inner_dim * inner_dim * inner_dim
-                h_out = h
-            else:
-                h_in = self.hparams.fully_connected_layers[ind - 1]
-                h_out = h
-
-            self.list_enc_fully.append(torch.nn.Linear(h_in, h_out))
-            self.list_enc_fully.append(torch.nn.LeakyReLU())
-
-            if self.hparams.batch_norm:
-                self.list_enc_fully.append(torch.nn.BatchNorm1d(h_out))
-
-            if self.hparams.dropout > 0:
-                self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
-                self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
-
-            if self.hparams.batch_norm and ind != 0:
-                self.list_dec_fully.append(torch.nn.BatchNorm1d(h_in))
-
-            if ind == len(self.hparams.fully_connected_layers) - 1:
-                self.list_dec_fully.append(torch.nn.LeakyReLU())
-            else:
-                self.list_dec_fully.append(torch.nn.LeakyReLU())
-
-            self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
-
-        # h_out = self.hparams.latent_dim
-
-        self.list_dec_fully.append(
-            torch.nn.Linear(
-                self.hparams.latent_dim, self.hparams.fully_connected_layers[-1]
-            )
-        )
-
-        self.list_enc_fully.append(
-            torch.nn.Linear(
-                self.hparams.fully_connected_layers[-1], self.hparams.latent_dim
-            )
-        )
-
-        self.list_enc_fully.append(torch.nn.LeakyReLU())
-
         for ind in range(len(self.hparams.channels)):
             if ind == 0:
                 in_type = feat_type_in
@@ -207,7 +155,9 @@ class R3CNN(pl.LightningModule):
             if self.hparams.batch_norm:
                 self.encoder_conv_list.append(nn.IIDBatchNorm3d(out_type))
 
-            self.encoder_conv_list.append(nn.ReLU(out_type))
+            # self.encoder_conv_list.append(nn.ReLU(out_type))
+            self.encoder_conv_list.append(nn.NormNonLinearity(out_type))
+
             # self.encoder_conv_list.append(nn.NormNonLinearity(out_type, 'n_relu'))
             output_padding = 0
             # if inner_dim%2 == 1 and ind == len(self.hparams.channels)-1:
@@ -244,7 +194,8 @@ class R3CNN(pl.LightningModule):
             if ind == 0:
                 self.decoder_conv_list.append(nn.IdentityModule(in_type))
             else:
-                self.decoder_conv_list.append(nn.ReLU(in_type))
+                # self.decoder_conv_list.append(nn.ReLU(in_type))
+                self.decoder_conv_list.append(nn.NormNonLinearity(in_type))
 
             if self.hparams.batch_norm:
                 self.decoder_conv_list.append(nn.IIDBatchNorm3d(in_type, affine=True))
@@ -271,6 +222,57 @@ class R3CNN(pl.LightningModule):
                     rings=rings,
                 )
             )
+
+        print("inner_dim: ", inner_dim)
+
+        for ind, h in enumerate(self.hparams.fully_connected_layers):
+            # if it's the last item in the list, then we want to output the latent dim
+            if ind == 0:
+                self.list_dec_fully.append(
+                    torch.nn.Unflatten(
+                        1, (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim)
+                    )
+                )
+                self.list_enc_fully.append(torch.nn.Flatten())
+                h_in = self.hparams.channels[-1] * inner_dim * inner_dim * inner_dim
+                h_out = h
+            else:
+                h_in = self.hparams.fully_connected_layers[ind - 1]
+                h_out = h
+
+            self.list_enc_fully.append(torch.nn.Linear(h_in, h_out))
+            self.list_enc_fully.append(torch.nn.LeakyReLU())
+
+            if self.hparams.batch_norm:
+                self.list_enc_fully.append(torch.nn.BatchNorm1d(h_out))
+
+            if self.hparams.dropout > 0:
+                self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
+                self.list_dec_fully.append(torch.nn.Dropout(self.hparams.dropout))
+
+            if self.hparams.batch_norm and ind != 0:
+                self.list_dec_fully.append(torch.nn.BatchNorm1d(h_in))
+
+            if ind == len(self.hparams.fully_connected_layers) - 1:
+                self.list_dec_fully.append(torch.nn.LeakyReLU())
+            else:
+                self.list_dec_fully.append(torch.nn.LeakyReLU())
+
+            self.list_dec_fully.append(torch.nn.Linear(h_out, h_in))
+
+        self.list_dec_fully.append(
+            torch.nn.Linear(
+                self.hparams.latent_dim, self.hparams.fully_connected_layers[-1]
+            )
+        )
+
+        self.list_enc_fully.append(
+            torch.nn.Linear(
+                self.hparams.fully_connected_layers[-1], self.hparams.latent_dim
+            )
+        )
+
+        self.list_enc_fully.append(torch.nn.LeakyReLU())
 
         # reverse the list
         self.list_dec_fully.reverse()

@@ -16,7 +16,7 @@ class UpConvBatch(torch.nn.Module):
         bias: bool,
         padding_mode: str,
         output_padding: int,
-        output_layer: bool=False,
+        output_layer: bool = False,
     ):
         super(UpConvBatch, self).__init__()
         if output_layer:

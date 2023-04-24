@@ -8,7 +8,7 @@ from torch.nn import functional as F
 # from torchmetrics.functional.classification import multiclass_f1_score, multiclass_accuracy
 import torchmetrics
 from vae_dist.core.metrics import *
-from vae_dist.core.parameters import pull_escnn_params
+from vae_dist.core.parameters import pull_escnn_params, build_representation
 
 
 class R3CNNRegressor(pl.LightningModule):
@@ -65,22 +65,21 @@ class R3CNNRegressor(pl.LightningModule):
             "optimizer": optimizer,
             "lr_decay_factor": lr_decay_factor,
             "lr_patience": lr_patience,
+            "escnn_params": escnn_params,
         }
 
         self.hparams.update(params)
         self.save_hyperparameters()
-        self.list_enc_fully = []
-        self.encoder_conv_list = []
-
-        (
-            group,
-            gspace,
-            feat_type_in,
-        ) = pull_escnn_params(escnn_params)
+        self.encoder_conv_list, self.list_enc_fully = [], []
+        print("channels: " + str(self.hparams.channels))
+        (group, gspace, rep_list) = pull_escnn_params(
+            escnn_params, self.hparams.channels
+        )
 
         gspace = gspace
         group = group
-        self.feat_type_in = feat_type_in
+        # self.feat_type_in = feat_type_in
+        self.feat_type_in = rep_list[0]
         inner_dim = self.hparams.im_dim
 
         # number of output channels
@@ -98,44 +97,11 @@ class R3CNNRegressor(pl.LightningModule):
                     )
 
         print("inner_dim: ", inner_dim)
-
-        for ind, h in enumerate(self.hparams.fully_connected_layers):
-            # if it's the last item in the list, then we want to output the latent dim
-            if ind == 0:
-                self.list_enc_fully.append(torch.nn.Flatten())
-                h_in = self.hparams.channels[-1] * inner_dim * inner_dim * inner_dim
-                h_out = h
-            else:
-                h_in = self.hparams.fully_connected_layers[ind - 1]
-                h_out = h
-
-            self.list_enc_fully.append(torch.nn.Linear(h_in, h_out))
-            self.list_enc_fully.append(torch.nn.LeakyReLU())
-
-            if self.hparams.batch_norm:
-                self.list_enc_fully.append(torch.nn.BatchNorm1d(h_out))
-
-            if self.hparams.dropout > 0:
-                self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
-
-        self.list_enc_fully.append(
-            torch.nn.Linear(
-                self.hparams.fully_connected_layers[-1], self.hparams.latent_dim
-            )
-        )
-        self.list_enc_fully.append(torch.nn.Softmax(dim=1))
-
+        ind_channels = 0
         for ind in range(len(self.hparams.channels)):
-            if ind == 0:
-                in_type = feat_type_in
-                channel_out = self.hparams.channels[0]
-
-            else:
-                channel_in = self.hparams.channels[ind - 1]
-                channel_out = self.hparams.channels[ind]
-                in_type = nn.FieldType(gspace, channel_in * [gspace.trivial_repr])
-
-            out_type = nn.FieldType(gspace, channel_out * [gspace.trivial_repr])
+            in_type = rep_list[ind_channels]
+            out_type = rep_list[ind_channels + 1]
+            ind_channels += 1
 
             print("in_type: {} out_type: {}".format(in_type, out_type))
 
@@ -161,13 +127,16 @@ class R3CNNRegressor(pl.LightningModule):
                     rings=rings,
                 )
             )
+
             if self.hparams.batch_norm:
                 self.encoder_conv_list.append(nn.IIDBatchNorm3d(out_type, affine=False))
 
-            self.encoder_conv_list.append(nn.ReLU(out_type, inplace=False))
+            # self.encoder_conv_list.append(nn.ReLU(out_type, inplace=False))
+            self.encoder_conv_list.append(nn.NormNonLinearity(out_type))
 
             if dropout > 0:
-                self.encoder_conv_list.append(nn.PointwiseDropout(out_type, p=dropout))
+                # self.encoder_conv_list.append(nn.PointwiseDropout(out_type, p=dropout))
+                self.encoder_conv_list.append(nn.FieldDropout(out_type, p=dropout))
 
             if self.hparams.max_pool and ind in self.hparams.max_pool_loc_in:
                 self.encoder_conv_list.append(
@@ -178,6 +147,34 @@ class R3CNNRegressor(pl.LightningModule):
                     )
                 )
 
+        for ind, h in enumerate(self.hparams.fully_connected_layers):
+            # if it's the last item in the list, then we want to output the latent dim
+            if ind == 0:
+                self.list_enc_fully.append(torch.nn.Flatten())
+                # h_in = self.hparams.channels[-1] * inner_dim * inner_dim * inner_dim
+                h_in = self.encoder_conv_list[-1].out_type.size
+                print("conv out type: ", self.encoder_conv_list[-1].out_type.size)
+                h_out = h
+            else:
+                h_in = self.hparams.fully_connected_layers[ind - 1]
+                h_out = h
+
+            self.list_enc_fully.append(torch.nn.Linear(h_in, h_out))
+            self.list_enc_fully.append(torch.nn.LeakyReLU())
+
+            if self.hparams.batch_norm:
+                self.list_enc_fully.append(torch.nn.BatchNorm1d(h_out))
+
+            if self.hparams.dropout > 0:
+                self.list_enc_fully.append(torch.nn.Dropout(self.hparams.dropout))
+
+        self.list_enc_fully.append(
+            torch.nn.Linear(
+                self.hparams.fully_connected_layers[-1], self.hparams.latent_dim
+            )
+        )
+        self.list_enc_fully.append(torch.nn.Softmax(dim=1))
+
         self.encoder_fully_net = torch.nn.Sequential(*self.list_enc_fully)
         self.encoder_conv = nn.SequentialModule(*self.encoder_conv_list)
         # self.encoder = nn.SequentialModule(self.encoder_conv, self.encoder_fully_net)
@@ -186,12 +183,23 @@ class R3CNNRegressor(pl.LightningModule):
         self.example_input_array = torch.rand(
             1, 3, self.hparams.im_dim, self.hparams.im_dim, self.hparams.im_dim
         )
-
-        summary(
-            self.encoder_fully_net,
-            (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim),
-            device="cpu",
-        )
+        try:
+            summary(
+                self.encoder_fully_net,
+                (self.hparams.channels[-1], inner_dim, inner_dim, inner_dim),
+                device="cpu",
+            )
+        except:
+            summary(
+                self.encoder_fully_net,
+                (
+                    self.encoder_conv_list[-1].out_type.size,
+                    inner_dim,
+                    inner_dim,
+                    inner_dim,
+                ),
+                device="cpu",
+            )
 
         self.train_acc = torchmetrics.Accuracy(
             task="multiclass", num_classes=self.hparams.latent_dim
@@ -217,7 +225,9 @@ class R3CNNRegressor(pl.LightningModule):
         x = self.feat_type_in(x)
         x = self.encoder_conv(x)
         x = x.tensor
+        # print(x.shape)
         x = x.reshape(x.shape[0], -1)
+        # print(x.shape)
         x = self.encoder_fully_net(x)
         return x
 

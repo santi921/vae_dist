@@ -1,10 +1,33 @@
 import torch
 from escnn import gspaces, group, nn
+from escnn.group import directsum
 
 
-def pull_escnn_params(params: dict):
+def build_representation(groupspace, o3: bool, K: int):
+    assert K >= 0
+
+    if K == 0:
+        return groupspace.trivial_repr
+
+    group = groupspace.fibergroup
+    if o3:
+        polynomials = [groupspace.trivial_repr, group.irrep(l=1, j=1)]
+    else:
+        polynomials = [groupspace.trivial_repr, group.irrep(l=1)]
+
+    for k in range(2, K + 1):
+        if o3:
+            polynomials.append(polynomials[-1].tensor(group.irrep(l=1, j=1)))
+        else:
+            polynomials = [groupspace.trivial_repr, group.irrep(l=1)]
+    final_rep = directsum(polynomials, name=f"polynomial_{K}")
+    return final_rep
+
+
+def pull_escnn_params(params: dict, channels_in: list, channels_out: list = []):
+    rep_list_out, rep_list_in = [], []
     params_keys = params.keys()
-
+    print("keys read from escnn: " + str(params_keys))
     if "escnn_group" not in params_keys:
         params["escnn_group"] = "so3"
     if "flips_r3" not in params_keys:
@@ -14,24 +37,59 @@ def pull_escnn_params(params: dict):
     if "scalar" not in params_keys:
         params["scalar"] = False
 
-    if params["escnn_group"] == "o3":
-        g = group.o3_group(params["max_freq"])
-    else:
-        g = group.so3_group(params["max_freq"])
+    # if params["escnn_group"] == "o3":
+    #    g = group.o3_group(params["max_freq"])
+    # else:
+    #    g = group.so3_group(params["max_freq"])
 
     if params["flips_r3"]:
+        print("flips enabled")
         gspace = gspaces.flipRot3dOnR3(maximum_frequency=params["max_freq"])
     else:
-        gspace = gspaces.Rot3dOnR3(maximum_frequency=params["max_freq"])
+        print("flips disabled")
+        gspace = gspaces.rot3dOnR3(maximum_frequency=params["max_freq"])
 
     if params["scalar"]:
-        input_out_reps = [gspace.trivial_repr]
+        input_out_reps = [build_representation(gspace, o3=params["flips_r3"], K=0)]
     else:
-        input_out_reps = 3 * [gspace.trivial_repr]
+        input_out_reps = 3 * [build_representation(gspace, o3=params["flips_r3"], K=0)]
 
-    feat_type_in = nn.FieldType(gspace, input_out_reps)
+    rep_list_in.append(nn.FieldType(gspace, input_out_reps))
+    # feat_type_in = nn.FieldType(gspace, input_out_reps)
 
-    return group, gspace, feat_type_in
+    for i in range(len(channels_in)):
+        # print(i)
+        rep_list_in.append(
+            nn.FieldType(
+                gspace,
+                channels_in[i]
+                * [
+                    build_representation(
+                        gspace, o3=params["flips_r3"], K=params["l_max"]
+                    )
+                ],
+            )
+        )
+
+    if channels_out == []:
+        # print(rep_list_in)
+        return group, gspace, rep_list_in
+
+    else:
+        for i in range(len(channels_out)):
+            rep_list_out.append(
+                nn.FieldType(
+                    gspace,
+                    channels_out[i]
+                    * [
+                        build_representation(
+                            gspace, o3=params["flips_r3"], K=params["l_max"]
+                        )
+                    ],
+                )
+            )
+        # print(rep_list_out)
+        return group, gspace, rep_list_in, rep_list_out
 
 
 def set_enviroment():

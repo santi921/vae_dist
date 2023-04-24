@@ -15,7 +15,7 @@
   },
   "escnn_group": "so3",
   "flips_r3": true,
-  "max_freq": 8,
+  "max_freq": 3,
   "latent_dim": 2,
   "dilation": 1,
   "learning_rate": 0.001,

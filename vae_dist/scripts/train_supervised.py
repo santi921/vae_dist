@@ -108,10 +108,15 @@ if __name__ == "__main__":
     )"""
 
     dataset_full, dataset_train, dataset_val = dataset_split_loader(
-        dataset_vanilla, train_split=0.8, batch_size=64, supervised=True
+        dataset_vanilla,
+        train_split=0.8,
+        batch_size=options["batch_size"],
+        supervised=True,
+        num_workers=0,
     )
 
     lr_monitor = LearningRateMonitor(logging_interval="step")
+
     # create early stopping callback
     early_stop_callback = EarlyStopping(
         monitor="val_loss", min_delta=0.00, patience=300, verbose=False, mode="max"
@@ -149,7 +154,7 @@ if __name__ == "__main__":
         default_root_dir=log_save_dir,
         logger=[logger_tb, logger_wb],
         detect_anomaly=True,
-        precision=16,
+        precision=32,
     )
 
     trainer.fit(model, dataset_train, dataset_val)

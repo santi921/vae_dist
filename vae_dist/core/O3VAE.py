@@ -69,6 +69,7 @@ class R3VAE(pl.LightningModule):
             "optimizer": optimizer,
             "lr_decay_factor": lr_decay_factor,
             "lr_patience": lr_patience,
+            "escnn_params": escnn_params,
         }
 
         assert (
