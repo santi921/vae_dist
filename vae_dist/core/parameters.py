@@ -116,7 +116,7 @@ def hyperparameter_dicts(image_size: int = 21):
         "batch_norm": {"values": [True, False]},
         "dropout": {"values": [0.0, 0.1, 0.25, 0.4]},
         "learning_rate": {
-            "min": 0.05,
+            "min": 0.001,
             "max": 0.5,
             "distribution": "log_uniform_values",
         },
@@ -136,7 +136,7 @@ def hyperparameter_dicts(image_size: int = 21):
         "batch_norm": {"values": [True, False]},
         "dropout": {"values": [0.0, 0.1, 0.25, 0.4]},
         "learning_rate": {
-            "min": 0.05,
+            "min": 0.001,
             "max": 0.5,
             "distribution": "log_uniform_values",
         },
@@ -156,7 +156,7 @@ def hyperparameter_dicts(image_size: int = 21):
         "batch_norm": {"values": [True, False]},
         "dropout": {"values": [0.0, 0.1, 0.25, 0.4]},
         "learning_rate": {
-            "min": 0.05,
+            "min": 0.001,
             "max": 0.5,
             "distribution": "log_uniform_values",
         },
@@ -172,7 +172,7 @@ def hyperparameter_dicts(image_size: int = 21):
         "batch_norm": {"values": [True, False]},
         "dropout": {"values": [0.0, 0.1, 0.25, 0.4]},
         "learning_rate": {
-            "min": 0.05,
+            "min": 0.001,
             "max": 0.5,
             "distribution": "log_uniform_values",
         },
@@ -261,7 +261,7 @@ def hyperparameter_dicts(image_size: int = 21):
                     "padding_mode": "zeros",
                 },
                 {
-                    "channels": [3, 32, 32, 64, 64, 256],
+                    "channels": [3, 32, 32, 64, 64, 128],
                     "kernel_size_in": [5, 5, 5, 5, 5],
                     "stride_in": [1, 1, 1, 1, 1],
                     "max_pool": False,
@@ -275,7 +275,7 @@ def hyperparameter_dicts(image_size: int = 21):
         dict_escnn_supervised["architecture"] = {
             "values": [
                 {
-                    "channels": [256, 128, 128],
+                    "channels": [128, 64, 64],
                     "kernel_size_in": [9, 9, 3],
                     "stride_in": [1, 1, 3],
                     "max_pool": False,
@@ -294,7 +294,7 @@ def hyperparameter_dicts(image_size: int = 21):
                     "padding_mode": "zeros",
                 },
                 {
-                    "channels": [32, 64, 128, 256, 512],
+                    "channels": [32, 64, 128, 128, 256],
                     "kernel_size_in": [5, 5, 5, 5, 5],
                     "stride_in": [1, 1, 1, 1, 1],
                     "max_pool": False,
@@ -309,7 +309,7 @@ def hyperparameter_dicts(image_size: int = 21):
             {
                 "values": [
                     {
-                        "channels": [32, 32, 64, 128, 256],
+                        "channels": [32, 32, 32, 64, 128],
                         "kernel_size_in": [4, 3, 3, 3, 3],
                         "stride_in": [1, 1, 1, 1, 1],
                         "kernel_size_out": [3, 3, 5, 5, 5, 5],
@@ -331,7 +331,7 @@ def hyperparameter_dicts(image_size: int = 21):
                         "padding_mode": "zeros",
                     },
                     {
-                        "channels": [32, 64, 128, 256],
+                        "channels": [32, 64, 128, 128],
                         "kernel_size_in": [7, 7, 5, 5],
                         "stride_in": [1, 1, 1, 1],
                         "kernel_size_out": [7, 7, 5, 5],
@@ -342,7 +342,7 @@ def hyperparameter_dicts(image_size: int = 21):
                         "padding_mode": "zeros",
                     },
                     {
-                        "channels": [32, 64, 256],
+                        "channels": [32, 64, 128],
                         "kernel_size_in": [7, 7, 7],
                         "stride_in": [1, 1, 3],
                         "kernel_size_out": [5, 7, 7],
@@ -554,7 +554,7 @@ def hyperparameter_dicts(image_size: int = 21):
             {
                 "values": [
                     {
-                        "channels": [3, 256, 512, 1024],
+                        "channels": [3, 128, 256, 512],
                         "kernel_size_in": [7, 7, 3],
                         "stride_in": [3, 3, 1],
                         "kernel_size_out": [7, 5, 3],
@@ -594,7 +594,7 @@ def hyperparameter_dicts(image_size: int = 21):
             {
                 "values": [
                     {
-                        "channels": [3, 256, 512, 1024],
+                        "channels": [3, 128, 128, 256],
                         "kernel_size_in": [7, 7, 3],
                         "stride_in": [3, 3, 1],
                         "kernel_size_out": [7, 5, 3],
@@ -605,7 +605,7 @@ def hyperparameter_dicts(image_size: int = 21):
                         "padding_mode": "zeros",
                     },
                     {
-                        "channels": [3, 64, 128, 128, 256],
+                        "channels": [3, 64, 128, 128, 128],
                         "kernel_size_in": [7, 7, 5, 5],
                         "stride_in": [3, 1, 1, 1],
                         "kernel_size_out": [5, 7, 7, 9],
@@ -616,7 +616,7 @@ def hyperparameter_dicts(image_size: int = 21):
                         "padding_mode": "zeros",
                     },
                     {
-                        "channels": [3, 64, 128, 128, 256],
+                        "channels": [3, 64, 128, 128, 128],
                         "kernel_size_in": [12, 9, 5],
                         "stride_in": [2, 2, 2],
                         "kernel_size_out": [11, 11, 11],
@@ -634,7 +634,7 @@ def hyperparameter_dicts(image_size: int = 21):
             {
                 "values": [
                     {
-                        "channels": [256, 512, 1024],
+                        "channels": [128, 128, 256],
                         "kernel_size_in": [7, 7, 3],
                         "stride_in": [3, 3, 1],
                         "kernel_size_out": [7, 5, 3],
@@ -645,7 +645,7 @@ def hyperparameter_dicts(image_size: int = 21):
                         "padding_mode": "zeros",
                     },
                     {
-                        "channels": [64, 128, 128, 256],
+                        "channels": [64, 128, 128, 128],
                         "kernel_size_in": [7, 7, 5, 5],
                         "stride_in": [3, 1, 1, 1],
                         "kernel_size_out": [5, 7, 7, 9],
@@ -656,7 +656,7 @@ def hyperparameter_dicts(image_size: int = 21):
                         "padding_mode": "zeros",
                     },
                     {
-                        "channels": [64, 128, 128, 256],
+                        "channels": [64, 128, 128, 128],
                         "kernel_size_in": [12, 9, 5],
                         "stride_in": [2, 2, 2],
                         "kernel_size_out": [11, 11, 11],
@@ -673,7 +673,7 @@ def hyperparameter_dicts(image_size: int = 21):
         dict_escnn_supervised["architecture"] = {
             "values": [
                 {
-                    "channels": [256, 512, 1024],
+                    "channels": [128, 256, 512],
                     "kernel_size_in": [7, 7, 3],
                     "stride_in": [3, 3, 1],
                     "max_pool": False,
@@ -705,7 +705,7 @@ def hyperparameter_dicts(image_size: int = 21):
         dict_cnn_supervised["architecture"] = {
             "values": [
                 {
-                    "channels": [3, 256, 512, 1024],
+                    "channels": [3, 128, 128, 256],
                     "kernel_size_in": [7, 7, 3],
                     "stride_in": [3, 3, 1],
                     "max_pool": False,
@@ -714,7 +714,7 @@ def hyperparameter_dicts(image_size: int = 21):
                     "padding_mode": "zeros",
                 },
                 {
-                    "channels": [3, 64, 128, 128, 256],
+                    "channels": [3, 64, 128, 128, 128],
                     "kernel_size_in": [7, 7, 5, 5],
                     "stride_in": [3, 1, 1, 1],
                     "max_pool": False,
@@ -723,7 +723,7 @@ def hyperparameter_dicts(image_size: int = 21):
                     "padding_mode": "zeros",
                 },
                 {
-                    "channels": [3, 64, 128, 128, 256],
+                    "channels": [3, 64, 128, 128, 128],
                     "kernel_size_in": [12, 9, 5],
                     "stride_in": [2, 2, 2],
                     "max_pool": False,
