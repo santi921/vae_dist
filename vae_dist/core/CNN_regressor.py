@@ -35,6 +35,7 @@ class CNNRegressor(pl.LightningModule):
         optimizer="adam",
         lr_decay_factor=0.5,
         lr_patience=30,
+        lr_monitor=True,
         **kwargs,
     ):
         super().__init__()
@@ -64,8 +65,10 @@ class CNNRegressor(pl.LightningModule):
             "optimizer": optimizer,
             "lr_decay_factor": lr_decay_factor,
             "lr_patience": lr_patience,
+            "lr_monitor": lr_monitor,
+            "pytorch-lightning_version": pl.__version__,
         }
-
+        
         assert len(channels) - 1 == len(
             stride_in
         ), "channels and stride must be the same length"
@@ -74,6 +77,7 @@ class CNNRegressor(pl.LightningModule):
         ), "stride and kernel_size must be the same length"
 
         self.hparams.update(params)
+        self.save_hyperparameters()
         self.list_enc_fully = []
         self.list_enc_conv = []
         modules_enc = []
@@ -316,7 +320,10 @@ class CNNRegressor(pl.LightningModule):
             eps=1e-08,
         )
         lr_scheduler = {"scheduler": scheduler, "monitor": "val_f1"}
-        return [optimizer], [lr_scheduler]
+        if self.hparams.lr_monitor: 
+            return [optimizer], [lr_scheduler]
+        return [optimizer]
+        
 
     def load_model(self, path):
         self.load_state_dict(torch.load(path, map_location="cuda:0"), strict=False)

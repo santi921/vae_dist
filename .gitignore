@@ -13,6 +13,7 @@
 
 *wandb
 *pt
+*pth
 *ckpt
 lightning_logs/*
 test_logs/*

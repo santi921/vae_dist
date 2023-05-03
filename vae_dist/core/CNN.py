@@ -41,10 +41,13 @@ class CNNAutoencoderLightning(pl.LightningModule):
         optimizer="adam",
         lr_decay_factor=0.5,
         lr_patience=30,
+        lr_monitor=True,
         **kwargs,
     ):
         super().__init__()
+      
         self.learning_rate = learning_rate
+      
         params = {
             "kernel_size_in": kernel_size_in,
             "kernel_size_out": kernel_size_out,
@@ -73,6 +76,8 @@ class CNNAutoencoderLightning(pl.LightningModule):
             "optimizer": optimizer,
             "lr_decay_factor": lr_decay_factor,
             "lr_patience": lr_patience,
+            "lr_monitor": lr_monitor,
+            "pytorch-lightning_version": pl.__version__,
         }
         assert (
             len(channels) - 1 == len(stride_in) == len(stride_out)
@@ -406,7 +411,9 @@ class CNNAutoencoderLightning(pl.LightningModule):
             eps=1e-08,
         )
         lr_scheduler = {"scheduler": scheduler, "monitor": "val_loss"}
-        return [optimizer], [lr_scheduler]
+        if self.hparams.lr_monitor: 
+            return [optimizer], [lr_scheduler]
+        return [optimizer]
 
     def load_model(self, path):
         self.model.load_state_dict(

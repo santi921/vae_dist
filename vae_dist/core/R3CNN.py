@@ -36,12 +36,15 @@ class R3CNN(pl.LightningModule):
         optimizer="adam",
         lr_decay_factor=0.5,
         lr_patience=30,
+        lr_monitor=True,
         escnn_params={},
         **kwargs,
     ):
         # super(self).__init__()
         super().__init__()
+        
         self.learning_rate = learning_rate
+
         params = {
             "channels": channels,
             "padding": 0,
@@ -67,7 +70,9 @@ class R3CNN(pl.LightningModule):
             "optimizer": optimizer,
             "lr_decay_factor": lr_decay_factor,
             "lr_patience": lr_patience,
+            "lr_monitor": lr_monitor,
             "escnn_params": escnn_params,
+            "pytorch-lightning_version": pl.__version__,
         }
 
         assert (
@@ -79,6 +84,7 @@ class R3CNN(pl.LightningModule):
             == len(kernel_size_in)
             == len(kernel_size_out)
         ), "stride and kernel_size must be the same length"
+
         self.hparams.update(params)
         self.save_hyperparameters()
 
@@ -468,7 +474,9 @@ class R3CNN(pl.LightningModule):
             eps=1e-08,
         )
         lr_scheduler = {"scheduler": scheduler, "monitor": "val_loss"}
-        return [optimizer], [lr_scheduler]
+        if self.hparams.lr_monitor: 
+            return [optimizer], [lr_scheduler]
+        return [optimizer]
 
     def load_model(self, path):
         self.load_state_dict(torch.load(path, map_location="cuda:0"), strict=False)

@@ -92,12 +92,16 @@ def construct_model(
     Returns
         model: pl.LightningModule, the model
     """
-    options_non_wandb = {
-        "log_wandb": True,
-        "im_dim": im_dim,
-        "groups": 1,
-        "dilation": 1,
-    }
+    keys = options.keys()
+    if "log_wandb" not in keys:
+        options.update(options_non_wandb)
+    if "groups" not in keys:
+        options["groups"] = 1
+    if "dilation" not in keys:
+        options["dilation"] = 1
+    if "im_dim" not in keys:
+        options["im_dim"] = im_dim
+
     assert model in [
         "esvae",
         "vae",
@@ -114,7 +118,6 @@ def construct_model(
         dim = 1
 
     options.update(options["architecture"])
-    options.update(options_non_wandb)
 
     if model in ["escnn", "esvae", "escnn_supervised"]:
         options["escnn_params"] = {

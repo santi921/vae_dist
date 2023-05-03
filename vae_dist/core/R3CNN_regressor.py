@@ -31,6 +31,7 @@ class R3CNNRegressor(pl.LightningModule):
         optimizer="adam",
         lr_decay_factor=0.5,
         lr_patience=30,
+        lr_monitor=True, 
         escnn_params={},
         **kwargs,
     ):
@@ -65,7 +66,9 @@ class R3CNNRegressor(pl.LightningModule):
             "optimizer": optimizer,
             "lr_decay_factor": lr_decay_factor,
             "lr_patience": lr_patience,
+            "lr_monitor": lr_monitor,
             "escnn_params": escnn_params,
+            "pytorch-lightning_version": pl.__version__,
         }
 
         self.hparams.update(params)
@@ -349,7 +352,9 @@ class R3CNNRegressor(pl.LightningModule):
             eps=1e-08,
         )
         lr_scheduler = {"scheduler": scheduler, "monitor": "val_f1"}
-        return [optimizer], [lr_scheduler]
+        if self.hparams.lr_monitor: 
+            return [optimizer], [lr_scheduler]
+        return [optimizer]
 
     def load_model(self, path):
         self.load_state_dict(torch.load(path, map_location="cuda:0"), strict=False)

@@ -178,6 +178,7 @@ if __name__ == "__main__":
 
     model.eval()
     # save state dict
-    print("Saving model to: ", log_save_dir + "/model_single_datapoint.ckpt")
-    torch.save(model.state_dict(), log_save_dir + "/model_single_datapoint.ckpt")
+    print("Saving model to: ", log_save_dir + "/model_train_epoch_{}_{}.ckpt".format(epochs, model_select))
+    #torch.save(model.state_dict(), log_save_dir + "/model_single_datapoint.ckpt")
+    trainer.save_checkpoint(log_save_dir + "/model_train_epoch_{}_{}.ckpt".format(epochs, model_select))
     run.finish()

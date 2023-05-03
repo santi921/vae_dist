@@ -172,7 +172,8 @@ class training:
             )
             model_obj.eval()
             # save state dict
-            torch.save(model_obj.state_dict(), log_save_dir + "/model_1.ckpt")
+            #torch.save(model_obj.state_dict(), log_save_dir + "/model_1.ckpt")
+            trainer.save_checkpoint(log_save_dir + "/tune_unsuper_{}.ckpt".format(self.model))
             # save model
             # torch.save(model_obj, log_save_dir + "/model_1.pt")
             run.finish()
