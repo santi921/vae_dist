@@ -9,6 +9,7 @@ from torch.nn import functional as F
 import torchmetrics
 from vae_dist.core.metrics import *
 from vae_dist.core.parameters import pull_escnn_params, build_representation
+from vae_dist.core.escnnlayers import MaskModule3D
 
 
 class R3CNNRegressor(pl.LightningModule):
@@ -33,6 +34,7 @@ class R3CNNRegressor(pl.LightningModule):
         lr_patience=30,
         lr_monitor=True, 
         escnn_params={},
+        mask=False,
         **kwargs,
     ):
         super().__init__()
@@ -68,6 +70,7 @@ class R3CNNRegressor(pl.LightningModule):
             "lr_patience": lr_patience,
             "lr_monitor": lr_monitor,
             "escnn_params": escnn_params,
+            "mask": mask,
             "pytorch-lightning_version": pl.__version__,
         }
 
@@ -110,9 +113,13 @@ class R3CNNRegressor(pl.LightningModule):
             in_type = rep_list[ind_channels]
             out_type = rep_list[ind_channels + 1]
             ind_channels += 1
-
             print("in_type: {} out_type: {}".format(in_type, out_type))
 
+            if ind_channels == 0 and self.hparams.mask:
+                print( "adding mask layer") 
+                self.mask = MaskModule3D(in_type=in_type, S=self.hparams.im_dim, margin=0.0)
+                self.encoder_conv_list.append(self.mask)
+            
             if stride_in[ind] == 2:
                 sigma = None
                 frequencies_cutoff = None
@@ -184,12 +191,15 @@ class R3CNNRegressor(pl.LightningModule):
 
         self.encoder_fully_net = torch.nn.Sequential(*self.list_enc_fully)
         self.encoder_conv = nn.SequentialModule(*self.encoder_conv_list)
+        
+
         # self.encoder = nn.SequentialModule(self.encoder_conv, self.encoder_fully_net)
 
         # this will need to be generalized for scalar fields
         self.example_input_array = torch.rand(
             1, 3, self.hparams.im_dim, self.hparams.im_dim, self.hparams.im_dim
         )
+
         try:
             summary(
                 self.encoder_fully_net,

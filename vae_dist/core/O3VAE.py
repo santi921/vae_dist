@@ -8,7 +8,7 @@ from torchmetrics import MeanSquaredError, MeanAbsoluteError
 from escnn import nn
 
 from vae_dist.core.losses import stepwise_inverse_huber_loss, inverse_huber
-from vae_dist.core.escnnlayers import R3Upsampling
+from vae_dist.core.escnnlayers import R3Upsampling, MaskModule3D
 from vae_dist.core.parameters import pull_escnn_params
 
 
@@ -40,6 +40,7 @@ class R3VAE(pl.LightningModule):
         lr_patience=30,
         lr_monitor=True,
         escnn_params={},
+        mask=False,
         **kwargs,
     ):
         super().__init__()
@@ -129,7 +130,11 @@ class R3VAE(pl.LightningModule):
             in_type = rep_list_in[ind_channels]
             out_type = rep_list_in[ind_channels + 1]
             ind_channels += 1
-
+            if ind_channels == 0 and self.hparams.mask:
+                print( "adding mask layer") 
+                self.mask = MaskModule3D(in_type=in_type, S=self.hparams.im_dim, margin=0.0)
+                self.encoder_conv_list.append(self.mask)
+            
             print("in_type: {} out_type: {}".format(in_type, out_type))
 
             self.encoder_conv_list.append(
