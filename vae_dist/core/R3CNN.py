@@ -43,7 +43,7 @@ class R3CNN(pl.LightningModule):
     ):
         # super(self).__init__()
         super().__init__()
-        
+
         self.learning_rate = learning_rate
 
         params = {
@@ -129,8 +129,10 @@ class R3CNN(pl.LightningModule):
             print("in_type: {} out_type: {}".format(in_type, out_type))
 
             if ind_channels == 0 and self.hparams.mask:
-                print( "adding mask layer") 
-                self.mask = MaskModule3D(in_type=in_type, S=self.hparams.im_dim, margin=0.0)
+                print("adding mask layer")
+                self.mask = MaskModule3D(
+                    in_type=in_type, S=self.hparams.im_dim, margin=0.0
+                )
                 self.encoder_conv_list.append(self.mask)
 
             if stride_in[ind] == 2:
@@ -481,7 +483,7 @@ class R3CNN(pl.LightningModule):
             eps=1e-08,
         )
         lr_scheduler = {"scheduler": scheduler, "monitor": "val_loss"}
-        if self.hparams.lr_monitor: 
+        if self.hparams.lr_monitor:
             return [optimizer], [lr_scheduler]
         return [optimizer]
 

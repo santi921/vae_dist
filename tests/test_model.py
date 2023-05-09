@@ -11,7 +11,6 @@ from vae_dist.core.training_utils import construct_model, LogParameters
 
 
 def test_model_construction():
-
     # root = "../../data/cpet/"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -69,6 +68,7 @@ def test_model_construction():
 def main():
     print("testing base data loading")
     test_model_construction()
+    print("all tests passed!")
 
 
 main()

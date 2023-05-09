@@ -32,7 +32,7 @@ class R3CNNRegressor(pl.LightningModule):
         optimizer="adam",
         lr_decay_factor=0.5,
         lr_patience=30,
-        lr_monitor=True, 
+        lr_monitor=True,
         escnn_params={},
         mask=False,
         **kwargs,
@@ -82,11 +82,6 @@ class R3CNNRegressor(pl.LightningModule):
             escnn_params, self.hparams.channels
         )
 
-        if escnn_params["flips_r3"]:
-            id_tuple = "so3"
-        else:
-            id_tuple = "so3"
-
         gspace = gspace
         group = group
         # self.feat_type_in = feat_type_in
@@ -116,10 +111,12 @@ class R3CNNRegressor(pl.LightningModule):
             print("in_type: {} out_type: {}".format(in_type, out_type))
 
             if ind_channels == 0 and self.hparams.mask:
-                print( "adding mask layer") 
-                self.mask = MaskModule3D(in_type=in_type, S=self.hparams.im_dim, margin=0.0)
+                print("adding mask layer")
+                self.mask = MaskModule3D(
+                    in_type=in_type, S=self.hparams.im_dim, margin=0.0
+                )
                 self.encoder_conv_list.append(self.mask)
-            
+
             if stride_in[ind] == 2:
                 sigma = None
                 frequencies_cutoff = None
@@ -191,7 +188,6 @@ class R3CNNRegressor(pl.LightningModule):
 
         self.encoder_fully_net = torch.nn.Sequential(*self.list_enc_fully)
         self.encoder_conv = nn.SequentialModule(*self.encoder_conv_list)
-        
 
         # self.encoder = nn.SequentialModule(self.encoder_conv, self.encoder_fully_net)
 
@@ -362,7 +358,7 @@ class R3CNNRegressor(pl.LightningModule):
             eps=1e-08,
         )
         lr_scheduler = {"scheduler": scheduler, "monitor": "val_f1"}
-        if self.hparams.lr_monitor: 
+        if self.hparams.lr_monitor:
             return [optimizer], [lr_scheduler]
         return [optimizer]
 
