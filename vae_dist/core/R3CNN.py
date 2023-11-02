@@ -9,6 +9,7 @@ from torch.nn import functional as F
 from vae_dist.core.escnnlayers import R3Upsampling, MaskModule3D
 from vae_dist.core.losses import stepwise_inverse_huber_loss, inverse_huber
 from vae_dist.core.parameters import pull_escnn_params
+from vae_dist.core.metrics import test_equivariance, test_activity
 
 
 class R3CNN(pl.LightningModule):
@@ -39,9 +40,11 @@ class R3CNN(pl.LightningModule):
         lr_monitor=True,
         escnn_params={},
         mask=False,
+        test_equivariance=False,
+        test_activity=False,
+        test_activity_loader=None,
         **kwargs,
     ):
-        # super(self).__init__()
         super().__init__()
 
         self.learning_rate = learning_rate
@@ -74,6 +77,8 @@ class R3CNN(pl.LightningModule):
             "lr_monitor": lr_monitor,
             "escnn_params": escnn_params,
             "mask": mask,
+            "test_equivariance": test_equivariance,
+            "test_activity": test_activity,
             "pytorch-lightning_version": pl.__version__,
         }
 
@@ -86,6 +91,12 @@ class R3CNN(pl.LightningModule):
             == len(kernel_size_in)
             == len(kernel_size_out)
         ), "stride and kernel_size must be the same length"
+
+        if test_activity:
+            print("test_activity: ", test_activity)
+            assert (
+                test_activity_loader is not None
+            ), "test_activity_loader must be provided"
 
         self.hparams.update(params)
         self.save_hyperparameters()
@@ -124,16 +135,17 @@ class R3CNN(pl.LightningModule):
         for ind in range(len(self.hparams.channels)):
             in_type = rep_list_in[ind_channels]
             out_type = rep_list_in[ind_channels + 1]
-            ind_channels += 1
 
-            print("in_type: {} out_type: {}".format(in_type, out_type))
-
-            if ind_channels == 0 and self.hparams.mask:
+            if ind_channels == 0 and bool(self.hparams.mask):
                 print("adding mask layer")
                 self.mask = MaskModule3D(
                     in_type=in_type, S=self.hparams.im_dim, margin=0.0
                 )
                 self.encoder_conv_list.append(self.mask)
+
+            ind_channels += 1
+
+            print("in_type: {} out_type: {}".format(in_type, out_type))
 
             if stride_in[ind] == 2:
                 sigma = None
@@ -445,6 +457,22 @@ class R3CNN(pl.LightningModule):
             wandb.log(out_dict)
         self.log_dict(out_dict)
 
+        if bool(self.hparams.test_equivariance):
+            equi_dict = test_equivariance(self, im_size=self.hparams.im_dim)
+            equi_dict = {f"test_{k}": v for k, v in equi_dict.items()}
+            self.log_dict(equi_dict, prog_bar=True)
+            if self.hparams.log_wandb:
+                # add "test_" to the keys
+                wandb.log(equi_dict)
+
+        if bool(self.hparams.test_activity):
+            activity_dict = test_activity(self.test_activity_loader, self)
+            activity_dict = activity_dict[["mean_same", "mean_diff"]]
+            activity_dict = {f"test_{k}": v for k, v in activity_dict.items()}
+            self.log_dict(activity_dict, prog_bar=True)
+            if self.hparams.log_wandb:
+                wandb.log(activity_dict)
+
     def validation_step(self, batch, batch_idx):
         return self.shared_step(batch, mode="val")
 
@@ -457,6 +485,23 @@ class R3CNN(pl.LightningModule):
         if self.hparams.log_wandb:
             wandb.log(out_dict)
         self.log_dict(out_dict, prog_bar=True)
+
+        if bool(self.hparams.test_equivariance):
+            equi_dict = test_equivariance(self, im_size=self.hparams.im_dim)
+            equi_dict = {f"val_{k}": v for k, v in equi_dict.items()}
+            self.log_dict(equi_dict, prog_bar=True)
+            if self.hparams.log_wandb:
+                wandb.log(equi_dict)
+
+        epoch = self.trainer.current_epoch
+        if bool(self.hparams.test_activity and epoch % 10 == 0):
+            print("Testing activity")
+            activity_dict = test_activity(self.test_activity_loader, self)
+            activity_dict = activity_dict[["mean_same", "mean_diff"]]
+            activity_dict = {f"val_{k}": v for k, v in activity_dict.items()}
+            self.log_dict(activity_dict, prog_bar=True)
+            if self.hparams.log_wandb:
+                wandb.log(activity_dict)
 
     def configure_optimizers(self):
         if self.hparams.optimizer == "Adam":

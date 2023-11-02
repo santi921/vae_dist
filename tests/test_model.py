@@ -65,6 +65,7 @@ def test_model_construction():
             model.to(device)
 
 
+"""
 def main():
     print("testing base data loading")
     test_model_construction()
@@ -72,3 +73,4 @@ def main():
 
 
 main()
+"""

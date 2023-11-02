@@ -9,14 +9,43 @@ from pytorch_lightning.callbacks import (
 )
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
-from vae_dist.dataset.dataset import FieldDataset
+from vae_dist.dataset.dataset import (
+    FieldDatasetSupervised,
+    FieldDataset,
+)
+
 from vae_dist.core.parameters import set_enviroment
 from vae_dist.core.training_utils import (
     construct_model,
     LogParameters,
     InputMonitor,
 )
+
 from vae_dist.core.parameters import set_enviroment
+
+
+def grab_supervised(
+    options,
+    device,
+    dataset_dir="../../data/cpet_augmented/",
+    supervised_file="../../data/protein_data.csv",
+):
+    dataset_vanilla = FieldDatasetSupervised(
+        dataset_dir,
+        supervised_file,
+        device=device,
+        transform=False,
+        augmentation=False,
+        standardize=options["standardize"],
+        lower_filter=options["lower_filter"],
+        log_scale=options["log_scale"],
+        min_max_scale=options["min_max_scale"],
+        wrangle_outliers=options["wrangle_outliers"],
+        scalar=options["scalar"],
+        offset=options["offset"],
+    )
+    print("got supervised dataset")
+    return dataset_vanilla
 
 
 if __name__ == "__main__":
@@ -28,18 +57,20 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, default="escnn")
     parser.add_argument("--epochs", type=int, default=1000)
     parser.add_argument("--dataset_dir", type=str, default="../../data/cpet_augmented/")
+    parser.add_argument("--test_activity", action="store_true")
+
     args = parser.parse_args()
 
-    # root = "../../data/"
-    # dataset = "cpet_augmented"
-    # root = root + dataset + "/"
     epochs = args.epochs
     model_select = args.model
     dataset_dir = args.dataset_dir
     dataset_name = dataset_dir.split("/")[-2]
+    test_activity = bool(args.test_activity)
+
     print("dataset_name: ", dataset_name)
     root = dataset_dir
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     # assert that the model is one of the following escnn, cnn, vae, esvae
     assert model_select in [
         "escnn",
@@ -47,6 +78,7 @@ if __name__ == "__main__":
         "vae",
         "esvae",
     ], "Model must be one of the following: escnn, cnn, vae, esvae"
+
     run = wandb.init(
         project="{}_dist_{}".format(model_select, dataset_name), reinit=True
     )
@@ -77,30 +109,52 @@ if __name__ == "__main__":
         offset=pre_process_options["offset"],
     )
 
+    if test_activity:
+        supervised_dataset_loader = grab_supervised(pre_process_options, device=device)
+    else:
+        supervised_dataset_loader = None
+    # supervised_dataset_loader = None
+
+    # print("about to make model")
     if model_select == "escnn":
         options = json.load(open("./options/options_escnn_default.json"))
         log_save_dir = "./logs/log_version_escnn_1/"
-        model = construct_model("escnn", options)
+        model = construct_model(
+            model="escnn", options=options, supervised_loader=supervised_dataset_loader
+        )
 
     elif model_select == "esvae":
         options = json.load(open("./options/options_esvae_default.json"))
         log_save_dir = "./logs/log_version_esvae_1/"
-        model = construct_model("esvae", options)
+        model = construct_model(
+            model="esvae",
+            options=options,
+            supervised_loader=supervised_dataset_loader,
+        )
 
     elif model_select == "cnn":
         options = json.load(open("./options/options_cnn_default.json"))
         log_save_dir = "./logs/log_version_auto_1/"
-        model = construct_model("cnn", options)
+        model = construct_model(
+            model="cnn",
+            options=options,
+            supervised_loader=supervised_dataset_loader,
+        )
 
     elif model_select == "vae":
         options = json.load(open("./options/options_vae_default.json"))
         log_save_dir = "./logs/log_version_vae_1/"
-        model = construct_model("vae", options)
+        model = construct_model(
+            model="vae",
+            options=options,
+            supervised_loader=supervised_dataset_loader,
+        )
 
     else:
         # throw error
         print("Model not found")
 
+    # print("made model")
     wandb.config.update({"model": model_select, "epochs": epochs, "data": root})
     wandb.config.update(options)
     wandb.config.update(pre_process_options)
@@ -108,16 +162,6 @@ if __name__ == "__main__":
     # load model to gpu
     model.to(device)
 
-    """    initializer = options['initializer']
-    if initializer == 'kaiming':
-        kaiming_init(model)
-    elif initializer == 'xavier':
-        xavier_init(model)
-    elif initializer == 'equi_var': # works
-        equi_var_init(model)
-    else:
-        raise ValueError("Initializer must be kaiming, xavier or equi_var")
-    """
     print(">" * 40 + "config_settings" + "<" * 40)
     for k, v in options.items():
         print("{}\t\t\t{}".format(str(k).ljust(20), str(v).ljust(20)))
@@ -142,11 +186,9 @@ if __name__ == "__main__":
         monitor="val_loss", min_delta=0.00, patience=200, verbose=False, mode="min"
     )
 
-    log_parameters = LogParameters()
+    log_parameters = LogParameters(wandb=True)
     logger_tb = TensorBoardLogger(log_save_dir, name="test_logs")
-    logger_wb = WandbLogger(
-        project="{}_dist_single".format(model_select), name="test_logs"
-    )
+    logger_wb = WandbLogger(project="{}_dist".format(model_select), name="test_logs")
     checkpoint_callback = ModelCheckpoint(
         monitor="val_loss",
         dirpath=log_save_dir,
@@ -173,12 +215,17 @@ if __name__ == "__main__":
         detect_anomaly=True,
         precision=32,
     )
-
+    print("got to trainer.fit")
     trainer.fit(model, dataset_loader_full, dataset_loader_full)
 
     model.eval()
     # save state dict
-    print("Saving model to: ", log_save_dir + "/model_train_epoch_{}_{}.ckpt".format(epochs, model_select))
-    #torch.save(model.state_dict(), log_save_dir + "/model_single_datapoint.ckpt")
-    trainer.save_checkpoint(log_save_dir + "/model_train_epoch_{}_{}.ckpt".format(epochs, model_select))
+    print(
+        "Saving model to: ",
+        log_save_dir + "/model_train_epoch_{}_{}.ckpt".format(epochs, model_select),
+    )
+    # torch.save(model.state_dict(), log_save_dir + "/model_single_datapoint.ckpt")
+    trainer.save_checkpoint(
+        log_save_dir + "/model_train_epoch_{}_{}.ckpt".format(epochs, model_select)
+    )
     run.finish()

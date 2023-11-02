@@ -30,6 +30,7 @@ class FieldDataset(torch.utils.data.Dataset):
         min_max_scale=False,
         show=False,
         offset=0,
+        sparsify=-1,
         st_mag=None,
     ):
         fields, shape, names = pull_fields(root, ret_names=True, offset=offset)
@@ -142,6 +143,13 @@ class FieldDataset(torch.utils.data.Dataset):
             filter_mat = np.array(filter_mat)
             data = filter_mat
 
+        if sparsify > 0:
+            # check int is larger than 1 and an int
+            assert (
+                isinstance(sparsify, int) and sparsify > 1
+            ), "sparsify must be an int larger than 1"
+            data = data[:, :, ::sparsify, ::sparsify, ::sparsify]
+
         if show:
             self.mags = np.sqrt((data**2).sum(axis=1))
             plt.hist(self.mags.flatten(), bins=100)
@@ -181,6 +189,7 @@ class FieldDataset(torch.utils.data.Dataset):
         self.log_scale = log_scale
         self.wrangle_outliers = wrangle_outliers
         self.lower_filter = lower_filter
+        self.sparsify = sparsify
 
     def __len__(self):
         return len(self.data)
@@ -219,8 +228,7 @@ class FieldDataset(torch.utils.data.Dataset):
         return data_tensor
 
     def dataset_to_numpy(self):
-        data_np = self.data.numpy()
-        return data_np
+        return self.data
 
 
 class FieldDatasetSupervised(torch.utils.data.Dataset):
@@ -241,6 +249,7 @@ class FieldDatasetSupervised(torch.utils.data.Dataset):
         show=False,
         offset=0,
         st_mag=None,
+        sparsify=-1,
     ):
         fields, shape, names, labels = pull_fields_w_label(
             root, supervised_file, ret_names=True, offset=offset
@@ -358,6 +367,13 @@ class FieldDatasetSupervised(torch.utils.data.Dataset):
             filter_mat = np.array(filter_mat)
             data = filter_mat
 
+        if sparsify > 0:
+            # check int is larger than 1 and an int
+            assert (
+                isinstance(sparsify, int) and sparsify > 1
+            ), "sparsify must be an int larger than 1"
+            data = data[:, :, ::sparsify, ::sparsify, ::sparsify]
+
         if show:
             self.mags = np.sqrt((data**2).sum(axis=1))
             plt.hist(self.mags.flatten(), bins=100)
@@ -436,8 +452,7 @@ class FieldDatasetSupervised(torch.utils.data.Dataset):
         return data_tensor
 
     def dataset_to_numpy(self):
-        data_np = self.data.numpy()
-        return data_np
+        return self.data
 
 
 def dataset_split_loader(

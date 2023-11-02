@@ -122,7 +122,7 @@ if __name__ == "__main__":
         monitor="val_loss", min_delta=0.00, patience=300, verbose=False, mode="max"
     )
 
-    log_parameters = LogParameters()
+    log_parameters = LogParameters(wandb=True)
     logger_tb = TensorBoardLogger(log_save_dir, name="test_logs")
     logger_wb = WandbLogger(
         project="{}_supervised_vae_dist".format(model_select), name="test_logs"
@@ -161,7 +161,12 @@ if __name__ == "__main__":
     model.eval()
 
     # save state dict
-    print("Saving model to: ", log_save_dir + "/model_supervised_{}.ckpt".format(model_select))
-    #torch.save(model.state_dict(), log_save_dir + "/model_supervised_datapoint.ckpt")
-    trainer.save_checkpoint(log_save_dir + "/model_supervised_{}.ckpt".format(model_select))
+    print(
+        "Saving model to: ",
+        log_save_dir + "/model_supervised_{}.ckpt".format(model_select),
+    )
+    # torch.save(model.state_dict(), log_save_dir + "/model_supervised_datapoint.ckpt")
+    trainer.save_checkpoint(
+        log_save_dir + "/model_supervised_{}.ckpt".format(model_select)
+    )
     run.finish()

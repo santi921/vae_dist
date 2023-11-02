@@ -9,6 +9,36 @@ from typing import Tuple
 
 from vae_dist.core.layers import UpConvBatch, ConvBatch
 from vae_dist.core.losses import stepwise_inverse_huber_loss, inverse_huber
+from vae_dist.core.metrics import test_activity
+
+
+def grab_supervised(
+    options,
+    device,
+    dataset_dir="../../data/cpet_augmented/",
+    supervised_file="../../data/protein_data.csv",
+):
+    from vae_dist.dataset.dataset import (
+        FieldDatasetSupervised,
+        FieldDataset,
+    )
+
+    dataset_vanilla = FieldDatasetSupervised(
+        dataset_dir,
+        supervised_file,
+        device=device,
+        transform=False,
+        augmentation=False,
+        standardize=options["standardize"],
+        lower_filter=options["lower_filter"],
+        log_scale=options["log_scale"],
+        min_max_scale=options["min_max_scale"],
+        wrangle_outliers=options["wrangle_outliers"],
+        scalar=options["scalar"],
+        offset=options["offset"],
+    )
+    print("got supervised dataset")
+    return dataset_vanilla
 
 
 class baselineVAEAutoencoder(pl.LightningModule):
@@ -44,6 +74,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
         lr_decay_factor=0.5,
         lr_patience=30,
         lr_monitor=True,
+        test_activity=False,
         **kwargs,
     ):
         super().__init__()
@@ -78,6 +109,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
             "lr_decay_factor": lr_decay_factor,
             "lr_patience": lr_patience,
             "lr_monitor": lr_monitor,
+            "test_activity": test_activity,
             "pytorch-lightning_version": pl.__version__,
         }
         assert (
@@ -89,6 +121,24 @@ class baselineVAEAutoencoder(pl.LightningModule):
             == len(kernel_size_in)
             == len(kernel_size_out)
         ), "stride and kernel_size must be the same length"
+
+        if test_activity:
+            pre_process_options = {
+                "transform": False,
+                "augmentation": False,
+                "standardize": True,
+                "lower_filter": True,
+                "log_scale": True,
+                "min_max_scale": False,
+                "wrangle_outliers": False,
+                "scalar": False,
+                "offset": 1,
+            }
+            self.supervised = grab_supervised(
+                pre_process_options,
+                device,
+            )
+
         self.hparams.update(params)
         self.save_hyperparameters()
 
@@ -411,6 +461,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
         self.log_dict(out_dict, prog_bar=True)
 
     def validation_epoch_end(self, outputs):
+        print("begining validation")
         rmse, mae = self.compute_metrics(mode="val")
         out_dict = {
             "val_rmse": rmse,
@@ -421,6 +472,16 @@ class baselineVAEAutoencoder(pl.LightningModule):
         if self.hparams.log_wandb:
             wandb.log(out_dict)
         self.log_dict(out_dict, prog_bar=True)
+        # get current epoch
+        epoch = self.trainer.current_epoch
+        # if bool(self.hparams.test_activity and epoch % 10 == 0):
+        #    print("Testing activity")
+        #    activity_dict = test_activity(self.test_activity_loader, self)
+        #    activity_dict = activity_dict[["mean_same", "mean_diff"]]
+        #    activity_dict = {f"val_{k}": v for k, v in activity_dict.items()}
+        #    self.log_dict(activity_dict, prog_bar=True)
+        #    if self.hparams.log_wandb:
+        #        wandb.log(activity_dict)
 
     def test_epoch_end(self, outputs):
         rmse, mae = self.compute_metrics(mode="test")
@@ -434,14 +495,26 @@ class baselineVAEAutoencoder(pl.LightningModule):
             wandb.log(out_dict)
         self.log_dict(out_dict, prog_bar=True)
 
+        # if bool(self.hparams.test_activity):
+        #    activity_dict = test_activity(self.test_activity_loader, self)
+        #    activity_dict = activity_dict[["mean_same", "mean_diff"]]
+        #    activity_dict = {f"test_{k}": v for k, v in activity_dict.items()}
+        #    self.log_dict(activity_dict, prog_bar=True)
+        #    if self.hparams.log_wandb:
+        #        wandb.log(activity_dict)
+
     def configure_optimizers(self):
-        if self.hparams.optimizer == "Adam": 
+        if self.hparams.optimizer == "Adam":
             print("Using Adam Optimizer")
-            optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+            optimizer = torch.optim.Adam(
+                self.parameters(), lr=self.hparams.learning_rate
+            )
         else:
             print("Using SGD Optimizer")
-            optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate)
-        
+            optimizer = torch.optim.SGD(
+                self.parameters(), lr=self.hparams.learning_rate
+            )
+
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode="max",
@@ -455,7 +528,7 @@ class baselineVAEAutoencoder(pl.LightningModule):
             eps=1e-08,
         )
         lr_scheduler = {"scheduler": scheduler, "monitor": "val_loss"}
-        if self.hparams.lr_monitor: 
+        if self.hparams.lr_monitor:
             return [optimizer], [lr_scheduler]
         return [optimizer]
 

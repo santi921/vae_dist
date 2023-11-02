@@ -28,9 +28,9 @@ def test_mask_module_3d():
     print("shapes match!")
 
 
+"""
 def main():
     # throw non implemented error
     test_mask_module_3d()
-
-
 main()
+"""

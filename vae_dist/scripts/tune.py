@@ -8,13 +8,42 @@ from pytorch_lightning.callbacks import (
 )
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
-from vae_dist.dataset.dataset import FieldDataset, dataset_split_loader
+from vae_dist.dataset.dataset import (
+    FieldDataset,
+    FieldDatasetSupervised,
+    dataset_split_loader,
+)
+
 from vae_dist.core.training_utils import (
     construct_model,
     LogParameters,
     InputMonitor,
 )
+
 from vae_dist.core.parameters import set_enviroment, hyperparameter_dicts
+
+
+def grab_supervised(
+    options,
+    dataset_dir="../../data/cpet_augmented/",
+    supervised_file="../../data/protein_data.csv",
+):
+    dataset_vanilla = FieldDatasetSupervised(
+        dataset_dir,
+        supervised_file,
+        device=device,
+        transform=False,
+        augmentation=False,
+        standardize=options["standardize"],
+        lower_filter=options["lower_filter"],
+        log_scale=options["log_scale"],
+        min_max_scale=options["min_max_scale"],
+        wrangle_outliers=options["wrangle_outliers"],
+        scalar=options["scalar"],
+        offset=options["offset"],
+    )
+
+    return dataset_vanilla
 
 
 class training:
@@ -33,6 +62,8 @@ class training:
         scalar=False,
         offset=1,
         project="vae_dist",
+        test_activity=False,
+        supervised_dataset_loader=None,
     ):
         self.model = model
         self.project = project
@@ -46,8 +77,9 @@ class training:
         self.lower_filter = lower_filter
         self.standardize = standardize
         self.aug = augmentation
-
         self.data_dir = data_dir
+        self.test_activity = test_activity
+        self.supervised_dataset_loader = supervised_dataset_loader
 
         print("dataset parameters")
         print("augmentation: ", self.aug)
@@ -57,6 +89,7 @@ class training:
         print("device: ", self.device)
         print("data_dir: ", self.data_dir)
         print("project: ", self.project)
+        print("test_activity: ", self.test_activity)
 
         dataset = FieldDataset(
             data_dir,
@@ -82,25 +115,19 @@ class training:
             dataset_loader_train,
             dataset_loader_test,
         ) = dataset_split_loader(dataset, train_split=0.8, num_workers=0)
+
         self.data_loader_full = dataset_loader_full
         self.data_loader_train = dataset_loader_train
         self.data_loader_test = dataset_loader_test
         print("loaders  created " * 5)
 
     def make_model(self, config):
-        model_obj = construct_model(model=self.model, options=config)
+        model_obj = construct_model(
+            model=self.model,
+            options=config,
+            supervised_loader=self.supervised_dataset_loader,
+        )
         model_obj.to(self.device)
-
-        """initializer = config['initializer']
-        if initializer == 'kaiming':
-            kaiming_init(model)
-        elif initializer == 'xavier':
-            xavier_init(model)
-        elif initializer == 'equi_var': # works
-            equi_var_init(model)
-        else:
-            raise ValueError("Initializer must be kaiming, xavier or equi_var")
-        """
 
         if self.model == "auto":
             log_save_dir = "./logs/log_version_autoenc_sweep/"
@@ -113,7 +140,7 @@ class training:
         else:
             raise ValueError("model not found")
 
-        log_parameters = LogParameters()
+        log_parameters = LogParameters(wandb=True)
         logger_tb = TensorBoardLogger(log_save_dir, name="test_logs")
         logger_wb = WandbLogger(
             project="{}_dist_sweep".format(self.model), name="test_logs"
@@ -172,23 +199,15 @@ class training:
             )
             model_obj.eval()
             # save state dict
-            #torch.save(model_obj.state_dict(), log_save_dir + "/model_1.ckpt")
-            trainer.save_checkpoint(log_save_dir + "/tune_unsuper_{}.ckpt".format(self.model))
+            # torch.save(model_obj.state_dict(), log_save_dir + "/model_1.ckpt")
+            trainer.save_checkpoint(
+                log_save_dir + "/tune_unsuper_{}.ckpt".format(self.model)
+            )
             # save model
             # torch.save(model_obj, log_save_dir + "/model_1.pt")
             run.finish()
 
         run.finish()
-
-
-def set_enviroment():
-    from torch.multiprocessing import set_start_method
-
-    torch.set_float32_matmul_precision("high")
-    try:
-        set_start_method("spawn")
-    except RuntimeError:
-        pass
 
 
 if __name__ == "__main__":
@@ -219,6 +238,8 @@ if __name__ == "__main__":
         help="model",
     )
 
+    parser.add_argument("--test_activity", action="store_true")
+
     pca_tf = True
     method = "bayes"
     project_name = "vae_dist_sweep"
@@ -229,7 +250,7 @@ if __name__ == "__main__":
     results = parser.parse_args()
     model = str(results.model)
     data_dir = str(results.dataset)
-    # dataset_int = int(results.dataset)
+    test_activity = bool(results.test_activity)
     count = int(results.count)
 
     dataset_name = str(results.dataset).split("/")[-1]
@@ -254,6 +275,11 @@ if __name__ == "__main__":
         "offset": 1,
     }
 
+    if test_activity:
+        supervised_dataset_loader = grab_supervised(pre_process_options)
+    else:
+        supervised_dataset_loader = None
+
     sweep_id = wandb.sweep(sweep_config, project=project_name)
     training_obj = training(
         data_dir,
@@ -269,6 +295,8 @@ if __name__ == "__main__":
         scalar=pre_process_options["scalar"],
         offset=pre_process_options["offset"],
         project=project_name,
+        supervised_dataset_loader=supervised_dataset_loader,
+        test_activity=test_activity,
     )
 
     wandb.agent(sweep_id, function=training_obj.train, count=count)

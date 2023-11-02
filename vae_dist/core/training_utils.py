@@ -1,5 +1,7 @@
 import torch
-from escnn import gspaces, nn, group
+import pytorch_lightning as pl
+import numpy as np
+import wandb
 
 from vae_dist.core.intializers import xavier_init, kaiming_init, equi_var_init
 from vae_dist.core.O3VAE import R3VAE
@@ -9,8 +11,6 @@ from vae_dist.core.CNN import CNNAutoencoderLightning
 from vae_dist.core.R3CNN_regressor import R3CNNRegressor
 from vae_dist.core.CNN_regressor import CNNRegressor
 from vae_dist.core.parameters import hyperparameter_dicts, pull_escnn_params
-import pytorch_lightning as pl
-import numpy as np
 
 
 class CheckBatchGradient(pl.Callback):
@@ -33,8 +33,9 @@ class CheckBatchGradient(pl.Callback):
 
 class LogParameters(pl.Callback):
     # weight and biases to tensorbard
-    def __init__(self):
+    def __init__(self, wandb=False):
         super().__init__()
+        self.wandb = wandb
 
     def on_fit_start(self, trainer, pl_module):
         self.d_parameters = {}
@@ -48,8 +49,13 @@ class LogParameters(pl.Callback):
                 trainer.logger.experiment.add_histogram(
                     n, p.data, trainer.current_epoch
                 )
-                self.d_parameters[n].append(p.ravel().cpu().numpy())
-                lp.append(p.ravel().cpu().numpy())
+                np_data = p.ravel().cpu().numpy()
+                self.d_parameters[n].append(np_data)
+                lp.append(np_data)
+
+                if bool(self.wandb):
+                    wandb.log({n: wandb.Histogram(np_data)})
+
             p = np.concatenate(lp)
             trainer.logger.experiment.add_histogram(
                 "Parameters", p, trainer.current_epoch
@@ -82,7 +88,11 @@ def train(model, data_loader, epochs=20):
 
 
 def construct_model(
-    model: str, options: dict, im_dim: int = 21, scalar_field: bool = False
+    model: str,
+    options: dict,
+    im_dim: int = 21,
+    scalar_field: bool = False,
+    supervised_loader=None,
 ):
     """
     Constructs a model based on the model name and options.
@@ -93,8 +103,6 @@ def construct_model(
         model: pl.LightningModule, the model
     """
     keys = options.keys()
-    if "log_wandb" not in keys:
-        options.update(options_non_wandb)
     if "groups" not in keys:
         options["groups"] = 1
     if "dilation" not in keys:
@@ -131,19 +139,23 @@ def construct_model(
 
     if model == "esvae":
         print("building esvae...")
-        model = R3VAE(**options)
+        model = R3VAE(**options, test_activity_loader=supervised_loader)
 
     elif model == "escnn":
         print("building escnn...")
-        model = R3CNN(**options)
+        model = R3CNN(**options, test_activity_loader=supervised_loader)
 
     elif model == "cnn":
         print("building autoencoder...")
-        model = CNNAutoencoderLightning(**options)
+        model = CNNAutoencoderLightning(
+            **options, test_activity_loader=supervised_loader
+        )
 
     elif model == "vae":
         print("building vae...")
-        model = baselineVAEAutoencoder(**options)
+        model = baselineVAEAutoencoder(
+            **options, test_activity_loader=supervised_loader
+        )
 
     elif model == "cnn_supervised":
         print("building cnn supervised...")

@@ -9,6 +9,7 @@ from torchmetrics import MeanSquaredError, MeanAbsoluteError
 
 from vae_dist.core.layers import UpConvBatch, ConvBatch, ResBlock
 from vae_dist.core.losses import stepwise_inverse_huber_loss, inverse_huber
+from vae_dist.core.metrics import test_activity
 
 
 class CNNAutoencoderLightning(pl.LightningModule):
@@ -42,12 +43,14 @@ class CNNAutoencoderLightning(pl.LightningModule):
         lr_decay_factor=0.5,
         lr_patience=30,
         lr_monitor=True,
+        test_activity=False,
+        test_activity_loader=None,
         **kwargs,
     ):
         super().__init__()
-      
+
         self.learning_rate = learning_rate
-      
+
         params = {
             "kernel_size_in": kernel_size_in,
             "kernel_size_out": kernel_size_out,
@@ -77,6 +80,7 @@ class CNNAutoencoderLightning(pl.LightningModule):
             "lr_decay_factor": lr_decay_factor,
             "lr_patience": lr_patience,
             "lr_monitor": lr_monitor,
+            "test_activity": test_activity,
             "pytorch-lightning_version": pl.__version__,
         }
         assert (
@@ -88,6 +92,11 @@ class CNNAutoencoderLightning(pl.LightningModule):
             == len(kernel_size_in)
             == len(kernel_size_out)
         ), "stride and kernel_size must be the same length"
+
+        if test_activity:
+            assert (
+                test_activity_loader is not None
+            ), "test_activity_loader must be provided"
 
         self.hparams.update(params)
         self.save_hyperparameters()
@@ -373,6 +382,15 @@ class CNNAutoencoderLightning(pl.LightningModule):
             wandb.log(out_dict)
         self.log_dict(out_dict)
 
+        epoch = self.trainer.current_epoch
+        if bool(self.hparams.test_activity and epoch % 10 == 0):
+            activity_dict = test_activity(self.test_activity_loader, self)
+            activity_dict = activity_dict[["mean_same", "mean_diff"]]
+            activity_dict = {f"test_{k}": v for k, v in activity_dict.items()}
+            self.log_dict(activity_dict, prog_bar=True)
+            if self.hparams.log_wandb:
+                wandb.log(activity_dict)
+
     def validation_step(self, batch, batch_idx):
         return self.shared_step(batch, mode="val")
 
@@ -385,6 +403,15 @@ class CNNAutoencoderLightning(pl.LightningModule):
         if self.hparams.log_wandb:
             wandb.log(out_dict)
         self.log_dict(out_dict, prog_bar=True)
+
+        if bool(self.hparams.test_activity):
+            print("Testing activity")
+            activity_dict = test_activity(self.test_activity_loader, self)
+            activity_dict = activity_dict[["mean_same", "mean_diff"]]
+            activity_dict = {f"val_{k}": v for k, v in activity_dict.items()}
+            self.log_dict(activity_dict, prog_bar=True)
+            if self.hparams.log_wandb:
+                wandb.log(activity_dict)
 
     def configure_optimizers(self):
         if self.hparams.optimizer == "Adam":
@@ -411,7 +438,7 @@ class CNNAutoencoderLightning(pl.LightningModule):
             eps=1e-08,
         )
         lr_scheduler = {"scheduler": scheduler, "monitor": "val_loss"}
-        if self.hparams.lr_monitor: 
+        if self.hparams.lr_monitor:
             return [optimizer], [lr_scheduler]
         return [optimizer]
 

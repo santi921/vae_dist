@@ -10,6 +10,7 @@ import torchmetrics
 from vae_dist.core.metrics import *
 from vae_dist.core.parameters import pull_escnn_params, build_representation
 from vae_dist.core.escnnlayers import MaskModule3D
+from vae_dist.core.metrics import test_equivariance
 
 
 class R3CNNRegressor(pl.LightningModule):
@@ -35,6 +36,7 @@ class R3CNNRegressor(pl.LightningModule):
         lr_monitor=True,
         escnn_params={},
         mask=False,
+        test_equivariance=False,
         **kwargs,
     ):
         super().__init__()
@@ -71,6 +73,7 @@ class R3CNNRegressor(pl.LightningModule):
             "lr_monitor": lr_monitor,
             "escnn_params": escnn_params,
             "mask": mask,
+            "test_equivariance": test_equivariance,
             "pytorch-lightning_version": pl.__version__,
         }
 
@@ -107,8 +110,6 @@ class R3CNNRegressor(pl.LightningModule):
         for ind in range(len(self.hparams.channels)):
             in_type = rep_list[ind_channels]
             out_type = rep_list[ind_channels + 1]
-            ind_channels += 1
-            print("in_type: {} out_type: {}".format(in_type, out_type))
 
             if ind_channels == 0 and self.hparams.mask:
                 print("adding mask layer")
@@ -116,6 +117,9 @@ class R3CNNRegressor(pl.LightningModule):
                     in_type=in_type, S=self.hparams.im_dim, margin=0.0
                 )
                 self.encoder_conv_list.append(self.mask)
+
+            ind_channels += 1
+            print("in_type: {} out_type: {}".format(in_type, out_type))
 
             if stride_in[ind] == 2:
                 sigma = None
@@ -323,6 +327,14 @@ class R3CNNRegressor(pl.LightningModule):
             wandb.log(out_dict)
         self.log_dict(out_dict)
 
+        if bool(self.hparams.test_equivariance):
+            equi_dict = test_equivariance(self, im_size=self.hparams.im_dim)
+            equi_dict = {f"test_{k}": v for k, v in equi_dict.items()}
+            self.log_dict(equi_dict, prog_bar=True)
+            if self.hparams.log_wandb:
+                # add "test_" to the keys
+                wandb.log(equi_dict)
+
     def validation_step(self, batch, batch_idx):
         return self.shared_step(batch, mode="val")
 
@@ -332,6 +344,13 @@ class R3CNNRegressor(pl.LightningModule):
         if self.hparams.log_wandb:
             wandb.log(out_dict)
         self.log_dict(out_dict, prog_bar=True)
+
+        if bool(self.hparams.test_equivariance):
+            equi_dict = test_equivariance(self, im_size=self.hparams.im_dim)
+            equi_dict = {f"val_{k}": v for k, v in equi_dict.items()}
+            self.log_dict(equi_dict, prog_bar=True)
+            if self.hparams.log_wandb:
+                wandb.log(equi_dict)
 
     def configure_optimizers(self):
         if self.hparams.optimizer == "Adam":

@@ -27,7 +27,6 @@ def build_representation(groupspace, o3: bool, K: int):
 def pull_escnn_params(params: dict, channels_in: list, channels_out: list = []):
     rep_list_out, rep_list_in = [], []
     params_keys = params.keys()
-    print("keys read from escnn: " + str(params_keys))
     if "escnn_group" not in params_keys:
         params["escnn_group"] = "so3"
     if "flips_r3" not in params_keys:
@@ -36,11 +35,6 @@ def pull_escnn_params(params: dict, channels_in: list, channels_out: list = []):
         params["max_freq"] = 4
     if "scalar" not in params_keys:
         params["scalar"] = False
-
-    # if params["escnn_group"] == "o3":
-    #    g = group.o3_group(params["max_freq"])
-    # else:
-    #    g = group.so3_group(params["max_freq"])
 
     if params["flips_r3"]:
         print("flips enabled")
@@ -55,10 +49,8 @@ def pull_escnn_params(params: dict, channels_in: list, channels_out: list = []):
         input_out_reps = 3 * [build_representation(gspace, o3=params["flips_r3"], K=0)]
 
     rep_list_in.append(nn.FieldType(gspace, input_out_reps))
-    # feat_type_in = nn.FieldType(gspace, input_out_reps)
 
     for i in range(len(channels_in)):
-        # print(i)
         rep_list_in.append(
             nn.FieldType(
                 gspace,
@@ -72,7 +64,6 @@ def pull_escnn_params(params: dict, channels_in: list, channels_out: list = []):
         )
 
     if channels_out == []:
-        # print(rep_list_in)
         return group, gspace, rep_list_in
 
     else:
@@ -88,7 +79,7 @@ def pull_escnn_params(params: dict, channels_in: list, channels_out: list = []):
                     ],
                 )
             )
-        # print(rep_list_out)
+
         return group, gspace, rep_list_in, rep_list_out
 
 
@@ -208,14 +199,14 @@ def hyperparameter_dicts(image_size: int = 21):
     }
 
     dict_escnn_supervised = {
-        "initializer": {"values": ["xavier", "kaiming"]},
+        "initializer": {"values": ["equi_var"]},
         "irreps": {"values": [None]},
-        "fully_connected_layers": {"values": [[100, 10], [100], [100, 50, 10], [50]]},
+        "fully_connected_layers": {"values": [[100, 100], [200, 200], [200, 200, 200]]},
         "batch_norm": {"values": [True, False]},
-        "dropout": {"values": [0.0, 0.1, 0.25, 0.4]},
+        "dropout": {"values": [0.0, 0.1, 0.25]},
         "learning_rate": {
-            "min": 0.001,
-            "max": 0.05,
+            "min": 0.0005,
+            "max": 0.01,
             "distribution": "log_uniform_values",
         },
         "padding": {"values": [0]},
@@ -740,5 +731,11 @@ def hyperparameter_dicts(image_size: int = 21):
     dict_ret["vae"] = dict_vae
     dict_ret["cnn_supervised"] = dict_cnn_supervised
     dict_ret["escnn_supervised"] = dict_escnn_supervised
+
+    for i in ["escnn", "esvae", "escnn_supervised"]:
+        dict_ret[i]["escnn_group"] = {"values": ["o3", "so3"]}
+        dict_ret[i]["flips_r3"] = {"values": [True, False]}
+        dict_ret[i]["max_freq"] = {"values": [6]}
+        dict_ret[i]["l_max"] = {"values": [1, 2, 3]}
 
     return dict_ret

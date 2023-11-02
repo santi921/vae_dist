@@ -41,5 +41,7 @@
   "offset": 1,
   "wrangle_outliers": false,
   "min_max_scaler": false,
-  "mask": true
+  "mask": true,
+  "test_equivariance": false,
+  "test_activity": false
 }

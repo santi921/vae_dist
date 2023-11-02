@@ -100,7 +100,7 @@ class training:
         else:
             raise ValueError("model not found")
 
-        log_parameters = LogParameters()
+        log_parameters = LogParameters(wandb=True)
         logger_tb = TensorBoardLogger(log_save_dir, name="test_logs")
         logger_wb = WandbLogger(
             project="{}_dist_sweep".format(self.model), name="test_logs"
@@ -164,8 +164,10 @@ class training:
 
             model_obj.eval()
             # save state dict
-            #torch.save(model_obj.state_dict(), log_save_dir + "/model_1.ckpt")
-            trainer.save_checkpoint(log_save_dir + "/tune_super_{}.ckpt".format(self.model))
+            # torch.save(model_obj.state_dict(), log_save_dir + "/model_1.ckpt")
+            trainer.save_checkpoint(
+                log_save_dir + "/tune_super_{}.ckpt".format(self.model)
+            )
             run.finish()
 
 
@@ -240,7 +242,6 @@ if __name__ == "__main__":
         "scalar": False,
         "offset": 1,
     }
-
     sweep_id = wandb.sweep(sweep_config, project=project_name)
 
     training_obj = training(
