@@ -278,7 +278,7 @@ class R3CNNRegressor(pl.LightningModule):
             prog_bar=True,
             batch_size=len(label),
         )
-        return loss
+        return loss  # return loss!
 
     def compute_metrics(self, mode):
         if mode == "train":

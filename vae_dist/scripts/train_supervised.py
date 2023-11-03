@@ -25,33 +25,47 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="escnn")
     parser.add_argument("--epochs", type=int, default=1000)
+    parser.add_argument("--checkpoint", action="store_true")
+    parser.add_argument("--dataset_dir", type=str, default="../../data/cpet_augmented/")
+    parser.add_argument(
+        "-config", type=str, default="./options/options_escnn_default_supervised.json"
+    )
 
     args = parser.parse_args()
     epochs = args.epochs
     model_select = args.model
+    dataset = args.dataset_dir
+    checkpoint = bool(args.checkpoint)
+    config = args.config
+    # remove ., /  from dataset name
+    dataset_trimmed = dataset.split("/")[-2]
 
-    root = "../../data/"
-    dataset = "cpet_augmented"
-    root = root + dataset + "/"
+    # root = "../../data/"
+    # dataset = "cpet_augmented"
+    # root = root + dataset + "/"
     supervised_file = "../../data/protein_data.csv"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if model_select == "escnn" or model_select == "cnn":
-        run = wandb.init(project="supervised_vae_{}".format(dataset), reinit=True)
+        run = wandb.init(
+            project="supervised_vae_{}".format(dataset_trimmed),
+            reinit=True,
+            entity="santi",
+        )
 
     assert model_select in ["escnn", "cnn"], "Model must be escnn or cnn"
 
     if model_select == "escnn":
-        options = json.load(open("./options/options_escnn_default_supervised.json"))
+        options = json.load(open(config))
         log_save_dir = "./logs/log_version_escnn/"
         model = construct_model("escnn_supervised", options)
 
     elif model_select == "cnn":
-        options = json.load(open("./options/options_cnn_default_supervised.json"))
+        options = json.load(open(config))
         log_save_dir = "./logs/log_version_cnn/"
         model = construct_model("cnn_supervised", options)
 
-    wandb.config.update({"model": model_select, "epochs": epochs, "data": root})
+    wandb.config.update({"model": model_select, "epochs": epochs, "data": dataset})
     wandb.config.update(options)
 
     pre_process_options = {
@@ -63,13 +77,14 @@ if __name__ == "__main__":
         "min_max_scale": False,
         "wrangle_outliers": False,
         "scalar": False,
+        "sparsify": -1,
         "offset": 1,
     }
     wandb.config.update(pre_process_options)
     options.update(pre_process_options)
 
     dataset_vanilla = FieldDatasetSupervised(
-        root,
+        dataset,
         supervised_file,
         device=device,
         transform=False,
@@ -81,6 +96,7 @@ if __name__ == "__main__":
         wrangle_outliers=options["wrangle_outliers"],
         scalar=options["scalar"],
         offset=options["offset"],
+        sparsify=options["sparsify"],
     )
 
     # load model to gpu
@@ -127,19 +143,20 @@ if __name__ == "__main__":
     logger_wb = WandbLogger(
         project="{}_supervised_vae_dist".format(model_select), name="test_logs"
     )
-    checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss",
-        dirpath=log_save_dir,
-        filename="{epoch:02d}-{val_loss:.2f}",
-        mode="min",
-    )
     callbacks = [
         early_stop_callback,
         lr_monitor,
         log_parameters,
-        checkpoint_callback,
         InputMonitor(),
     ]
+    if checkpoint:
+        checkpoint_callback = ModelCheckpoint(
+            monitor="val_loss",
+            dirpath=log_save_dir,
+            filename="{epoch:02d}-{val_loss:.2f}",
+            mode="min",
+        )
+        callbacks.append(checkpoint_callback)
 
     trainer = pl.Trainer(
         max_epochs=epochs,

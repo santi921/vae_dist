@@ -16,6 +16,7 @@
   "bias": true,
   "latent_dim": 3,
   "activation": "relu",
+  "batch_size": 128,
   "batch_norm": true,
   "log_wandb": true,
   "im_dim": 21,
